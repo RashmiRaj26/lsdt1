@@ -2,22 +2,21 @@
 
 import numpy as np
 import networkx as nx
-from nodeStructure import SensorNode, SinkNode
+from Initilzation.nodeStructure import SensorNode, SinkNode
 
 def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmission_range=20, seed=42):
     np.random.seed(seed)
 
-    # Generate random positions
+    # Generate random positions for sensor nodes
     positions = {
         i: (np.random.uniform(0, area_size), np.random.uniform(0, area_size))
         for i in range(num_nodes)
     }
 
-    # Create graph
+    # Create graph and initialize sensor nodes
     G = nx.Graph()
     sensor_nodes = {}
 
-    # Initialize SensorNodes
     for node_id in range(num_nodes):
         initial_energy = np.random.uniform(E0, (1 + theta) * E0)
         communication_radius = np.random.uniform(5, transmission_range)
@@ -31,8 +30,12 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
             if np.linalg.norm(np.array(positions[i]) - np.array(positions[j])) <= transmission_range:
                 G.add_edge(i, j)
 
-    # Initialize SinkNode at a random position
+    # Create SinkNode at a random location
     sink_location = (np.random.uniform(0, area_size), np.random.uniform(0, area_size))
     sink_node = SinkNode(location=sink_location)
+
+    # Add sink node location to the 'positions' dictionary
+    sink_id = 'sink'
+    positions[sink_id] = sink_node.location  # This is the fix!
 
     return G, sensor_nodes, sink_node, positions
