@@ -1,110 +1,160 @@
-import math
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import random
-from hashlib import sha256
+import math
+from Initialization.nodeStructure import SensorNode, SinkNode
 
-# Simulated symmetric encryption/decryption for simplicity
-def encrypt(data, key):
+# ------------------ Helper Functions ------------------
+def euclidean_distance(loc1, loc2):
+    return math.sqrt((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2)
+
+def encrypt(data):
     return f"enc({data})"
 
-def decrypt(data, key):
-    if data.startswith("enc(") and data.endswith(")"):
-        return data[4:-1]
-    return data
+def decrypt(ciphertext):
+    return ciphertext.replace("enc(", "").replace(")", "")
 
-# Energy transmission model
-def energy_transmit(duv, L, D0=50, Eelec=0.1, fs=0.01, mp=0.001):
-    return L * Eelec + L * (fs * duv ** 2 if duv <= D0 else mp * duv ** 4)
+def ET(d, L): 
+    return d * 0.1 + L * 0.01  # Simulated energy transmission cost
 
-# Message class
-class Message:
-    def __init__(self, msg_id, share, timestamp, path=[], path_star=[]):
-        self.id = msg_id
-        self.si = share
-        self.hash = sha256(f"{msg_id}{share}".encode()).hexdigest()
-        self.path = path
-        self.path_star = path_star
-        self.timestamp = timestamp
+# ------------------ Step 1 ------------------
+def step1_send_query(node_u, message, neighbor_nodes, Du):
+    print("\n--- Step 1: Sending Queries ---")
+    queries = {}
+    for v in neighbor_nodes:
+        if v.node_id not in message['path*']:
+            alpha_j = random.randint(1, 100)
+            query = {
+                'IDu': node_u.node_id,
+                'g_alpha_j': alpha_j,
+                'TS': message['TS']
+            }
+            queries[v.node_id] = query
+            print(f"Query sent from Node {node_u.node_id} to Node {v.node_id}: {query}")
+    return queries
 
-# Random exponentiation placeholder for g^alpha, g^beta
-def generate_random_exponent():
-    return random.randint(1, 1000)
-
-def simulate_group_exp(base, exponent):
-    return f"g^{exponent}"
-
-# Message transmission function (5-step based)
-def transmit_message(source_node, message, sink_node, lambda_weight=2, message_bit_length=512):
-    print(f"\n[Node {source_node.node_id}] Initiating Message Transmission")
-
-    visited_nodes = set(message.path_star)
-    Neiu = [n for n in source_node.neighbors if n.node_id not in visited_nodes and not n.detected_as_malicious]
-
-    if not Neiu:
-        print(f"[!] Node {source_node.node_id} has no eligible neighbors to forward.")
-        return
-
-    # Step 1: Send query Qj = {IDu, g^alpha_j, TS} to eligible neighbors
-    alpha_j = generate_random_exponent()
-    g_alpha_j = simulate_group_exp('g', alpha_j)
-
+# ------------------ Step 2 ------------------
+def step2_neighbors_respond(queries, sink_location, all_nodes):
+    print("\n--- Step 2: Neighbors Responding ---")
     responses = {}
+    for v_id, q in queries.items():
+        v = all_nodes[v_id]
+        beta_j = random.randint(1, 100)
+        g_beta_j = beta_j
+        g_alpha_beta_j = q['g_alpha_j'] * beta_j
 
-    for vj in Neiu:
-        print(f"[Query] Node {source_node.node_id} -> Node {vj.node_id} | Qj = {{IDu: {source_node.node_id}, g^alpha_j: {g_alpha_j}, TS: {message.timestamp}}}")
-        beta_j = generate_random_exponent()
-        g_beta_j = simulate_group_exp('g', beta_j)
-        g_alpha_beta_j = simulate_group_exp(g_alpha_j, beta_j)
-        dvjs = vj.distance_to(sink_node)
+        dvjs = euclidean_distance(v.location, sink_location)
+        ciphertext = encrypt(f"{v.node_id}|{v.initial_energy}|{dvjs}|{q['TS']}|{g_alpha_beta_j}")
+        response = {
+            'ciphertext': ciphertext,
+            'g_beta_j': g_beta_j
+        }
+        responses[v_id] = response
+        print(f"Response from Node {v.node_id}: {response}")
+    return responses
 
-        ciphertext = encrypt(f"{vj.node_id}|{vj.energy}|{dvjs}|{message.timestamp}|{g_alpha_beta_j}", g_alpha_beta_j)
-        responses[vj] = (ciphertext, g_beta_j)
+# ------------------ Step 3 ------------------
+def step3_decrypt_and_collect(responses, queries):
+    print("\n--- Step 3: Decrypting and Collecting Responses ---")
+    metrics = {}
+    for v_id, res in responses.items():
+        decrypted = decrypt(res['ciphertext'])
+        parts = decrypted.split('|')
+        metrics[v_id] = {
+            'id': parts[0],
+            'energy': float(parts[1]),
+            'dvjs': float(parts[2]),
+            'TS': parts[3]
+        }
+        print(f"Decrypted Data from Node {v_id}: {metrics[v_id]}")
+    return metrics
 
-    # Step 2-3: Decrypt each response and extract values
-    best_node = None
-    max_IF = -1
+# ------------------ Step 4 ------------------
+def step4_select_relay(metrics, node_u, message, all_nodes, L, lambda_val=2):
+    print("\n--- Step 4: Selecting Relay Node ---")
+    IF_values = {}
+    for v_id, m in metrics.items():
+        v = all_nodes[v_id]
+        duvj = euclidean_distance(node_u.location, v.location)
 
-    for vj, (ciphertext, g_beta_j) in responses.items():
-        g_alpha_beta_j = simulate_group_exp(g_beta_j, alpha_j)
-        decrypted = decrypt(ciphertext, g_alpha_beta_j)
-        try:
-            IDvj, E_vj, dvjs, TS, proof = decrypted.split('|')
-            IDvj, E_vj, dvjs = int(IDvj), float(E_vj), float(dvjs)
-        except:
-            continue
+        pvj = 1
+        pa = lambda_val if v_id in message['path'] else 1
+        energy_term = m['energy'] / ET(duvj, L)
+        distance_term = 1 / (m['dvjs'] ** 2)
+        IF = pvj * pa * energy_term * distance_term
 
-        duvj = source_node.distance_to(vj)
-        ET = energy_transmit(duvj, message_bit_length)
+        IF_values[v_id] = IF
+        print(f"Node {v_id}: IF value = {IF}")
 
-        # Step 4: Compute IF value for each neighbor
-        pvj = vj.reputation  # Default = 1 initially
-        pa = lambda_weight if vj.node_id in message.path else 1
-        IF = (pvj * pa * E_vj) / (ET * ((dvjs ** 2) + 1e-6))
+    best_node = max(IF_values, key=IF_values.get)
+    print(f"Selected Relay Node: {best_node} with IF value: {IF_values[best_node]}")
+    return best_node
 
-        print(f"[IF Computation] IF({source_node.node_id},{vj.node_id}) = ({pvj} * {pa} * {E_vj}) / ({ET} * {dvjs}^2) = {IF:.4f}")
+# ------------------ Step 5 ------------------
+def step5_forward_message(message, selected_node_id):
+    print("\n--- Step 5: Forwarding Message ---")
+    new_message = message.copy()
+    new_message['path*'].append(selected_node_id)
+    print(f"Message forwarded to Node {selected_node_id}. Path so far: {new_message['path*']}")
+    return new_message
 
-        if IF > max_IF:
-            max_IF = IF
-            best_node = vj
+# ------------------ Message Transmission Simulation ------------------
+def simulate_message_transmission():
+    print("\n--- Simulation Start ---")
+    sink = SinkNode(location=(100, 100))
+    source_node = SensorNode("n0", (0, 0), 100, 60)
+    nodes = [
+        SensorNode("n1", (20, 10), 90, 60),
+        SensorNode("n2", (40, 20), 85, 60),
+        SensorNode("n3", (60, 40), 80, 60),
+        SensorNode("n4", (80, 60), 70, 60),
+    ]
+    all_nodes = {node.node_id: node for node in nodes}
+    all_nodes[source_node.node_id] = source_node
 
-    # Step 5: Forward message to next-hop node with largest IF
-    if best_node:
-        duv = source_node.distance_to(best_node)
-        energy_used = energy_transmit(duv, message_bit_length)
-        source_node.energy -= energy_used
-        message.path_star.append(best_node.node_id)
-        best_node.receive_message(message, source_node)
+    message = {
+        'id': 'm1',
+        'TS': 123456,
+        'path': [],
+        'path*': [source_node.node_id]
+    }
 
-        if best_node == sink_node:
-            print(f"[✓] Message {message.id} delivered to sink by Node {best_node.node_id}")
-        else:
-            transmit_message(best_node, message, sink_node, lambda_weight, message_bit_length)
-    else:
-        print(f"[X] Node {source_node.node_id} failed to forward message.")
+    current_node = source_node
+    hop = 0
+    while hop < sink.max_hops:
+        print(f"\n--- Hop {hop + 1} ---")
+        neighbors = [
+            node for node in nodes 
+            if node.node_id not in message['path*'] and 
+            euclidean_distance(current_node.location, node.location) <= current_node.communication_radius
+        ]
 
-# Overriding receive_message to support tracking
-def receive_message_override(self, message, sender):
-    print(f"[Receive] Node {self.node_id} received message {message.id} from Node {sender.node_id}")
-    self.messages_forwarded[message.id] = message
+        if not neighbors:
+            print("No neighbors within range. Breaking the loop.")
+            break
 
-# Note: Attach this override externally with:
-# SensorNode.receive_message = receive_message_override
+        print(f"Current Node: {current_node.node_id}")
+        queries = step1_send_query(current_node, message, neighbors, current_node.communication_radius)
+        responses = step2_neighbors_respond(queries, sink.location, all_nodes)
+        metrics = step3_decrypt_and_collect(responses, queries)
+        selected_id = step4_select_relay(metrics, current_node, message, all_nodes, L=100)
+        message = step5_forward_message(message, selected_id)
+        current_node = all_nodes[selected_id]
+        hop += 1
+
+        if euclidean_distance(current_node.location, sink.location) <= current_node.communication_radius:
+            message['path*'].append('sink')
+            print(f"Message reached the Sink Node!")
+            break
+
+    message['final_hop'] = current_node.node_id
+    message['total_hops'] = hop + 1
+    return message
+
+# Run the simulation
+if __name__ == "__main__":
+    result = simulate_message_transmission()
+    print("\n--- Simulation Complete ---")
+    print("Message transmission path:", result['path*'])
+    print("Total hops:", result['total_hops'])

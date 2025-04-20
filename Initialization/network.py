@@ -2,7 +2,7 @@
 
 import numpy as np
 import networkx as nx
-from Initilzation.nodeStructure import SensorNode, SinkNode
+from Initialization.nodeStructure import SensorNode, SinkNode
 
 def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmission_range=20, seed=42):
     np.random.seed(seed)

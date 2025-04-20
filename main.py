@@ -1,5 +1,5 @@
-from Initilzation.network import initialize_network
-from Initilzation.routing_path import reference_routing_path_initialization
+from Initialization.network import initialize_network
+from Initialization.routing_path import reference_routing_path_initialization
 import matplotlib.pyplot as plt
 import networkx as nx
 
