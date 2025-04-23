@@ -1,8 +1,8 @@
-from msgtrans import transmit_message, Message
-import matplotlib.pyplot as plt
 import time
+import matplotlib.pyplot as plt
+from msgtrans import transmit_message, Message, receive_message_override
 
-# SensorNode class (inline version)
+# Define the SensorNode class inline for simplicity
 class SensorNode:
     def __init__(self, node_id, energy, location, transmission_radius, is_sink=False):
         self.node_id = node_id
@@ -11,116 +11,102 @@ class SensorNode:
         self.transmission_radius = transmission_radius
         self.is_sink = is_sink
         self.neighbors = []
-        self.routing_table = []
         self.reputation = 1.0
-        self.suspicion_score = 1
-        self.messages_forwarded = {}
         self.detected_as_malicious = False
+        self.messages_forwarded = {}
 
-    def distance_to(self, other_node):
+    def distance_to(self, other):
         x1, y1 = self.location
-        x2, y2 = other_node.location
-        return ((x2 - x1)**2 + (y2 - y1)**2)**0.5
+        x2, y2 = other.location
+        return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
 
-    def can_communicate_with(self, other_node):
-        return self.distance_to(other_node) <= self.transmission_radius
+    def can_communicate_with(self, other):
+        return self.distance_to(other) <= self.transmission_radius
 
-    def add_neighbor(self, other_node):
-        if self.can_communicate_with(other_node):
-            self.neighbors.append(other_node)
+    def add_neighbor(self, other):
+        if self.can_communicate_with(other):
+            self.neighbors.append(other)
 
-    def update_reputation(self, delta):
-        self.suspicion_score += delta
-        self.reputation = 1 / self.suspicion_score
+# Bind the message receiving behavior
+SensorNode.receive_message = receive_message_override
 
-    def mark_as_malicious(self):
-        self.detected_as_malicious = True
-        self.reputation = 0.0
+# Create nodes for simulation
+sink = SensorNode(0, 1000, (100, 100), 150, is_sink=True)
+s1 = SensorNode(1, 100, (10, 10), 80)
+s2 = SensorNode(2, 90, (35, 35), 80)
+s3 = SensorNode(3, 85, (60, 60), 80)
+s4 = SensorNode(4, 95, (85, 85), 80)
 
-    def receive_message(self, message, sender):
-        print(f"Node {self.node_id} received message {message.id} from Node {sender.node_id}")
-        self.messages_forwarded[message.id] = message
+nodes = [sink, s1, s2, s3, s4]
 
-    def __repr__(self):
-        return f"SensorNode(id={self.node_id}, energy={self.energy:.2f}, rep={self.reputation:.2f})"
-
-# Step 1: Create the nodes
-sink = SensorNode(node_id=0, energy=999, location=(100, 100), transmission_radius=120, is_sink=True)
-node1 = SensorNode(node_id=1, energy=100, location=(10, 10), transmission_radius=80)
-node2 = SensorNode(node_id=2, energy=90, location=(40, 40), transmission_radius=80)
-node3 = SensorNode(node_id=3, energy=85, location=(70, 70), transmission_radius=80)
-node4 = SensorNode(node_id=4, energy=95, location=(90, 90), transmission_radius=80)
-
-nodes = [sink, node1, node2, node3, node4]
-
-# Step 2: Establish neighbors based on communication radius
+# Set up neighbors
 for node in nodes:
     for other in nodes:
-        if node != other and node.can_communicate_with(other):
+        if node != other:
             node.add_neighbor(other)
 
-# Step 3: Print initial state
-print("\n✅ Initial Network State:")
+# Show initial setup
+print("\n✅ Initial Node Setup:")
 for node in nodes:
-    print(node)
+    print(f"Node {node.node_id} at {node.location} with energy {node.energy}")
     print(f"  Neighbors: {[n.node_id for n in node.neighbors]}")
+    time.sleep(0.5)
 
-# Step 4: Create a message to send from source (node1) to sink
+# Create a message from source to sink
 msg = Message(
     msg_id=101,
     share="s101",
     timestamp="T1",
-    path=[1, 2, 3, 4, 0],
-    path_star=[1]  # Already visited by source
+    path=[1, 2, 3, 4, 0],  # Suggested reference path
+    path_star=[1]          # Source node already visited
 )
 
-# Step 5: Start transmission
-print("\n🚀 Starting Message Transmission...\n")
-try:
-    transmit_message(source_node=node1, message=msg, sink_node=sink)
-except ZeroDivisionError:
-    print("[X] Error: Division by zero occurred during IF calculation. Check if node is too close to the sink (distance = 0).")
-
-# Step 6: Final network state
-print("\n✅ Final State After Transmission:")
-for node in nodes:
-    print(node)
-    print(f"  Energy Left: {node.energy:.2f}")
-    print(f"  Messages Forwarded: {list(node.messages_forwarded.keys())}\n")
-
-# Step 7: Print Message Transmission Path
-print("🚚 Message Transmission Path:")
-print(" -> ".join(map(str, msg.path_star)))
-
-# Step 8: Animated Visual of the Transmission Path
+# Visualization helper
 plt.ion()
 fig, ax = plt.subplots(figsize=(8, 8))
-for i in range(len(msg.path_star)):
-    ax.clear()
-    ax.set_title("Animated HWSN Message Transmission")
-    ax.set_xlim(0, 120)
-    ax.set_ylim(0, 120)
-    ax.set_xlabel("X Position")
-    ax.set_ylabel("Y Position")
-    ax.grid(True)
 
+def draw_network(path_star):
+    ax.clear()
     for node in nodes:
         x, y = node.location
-        color = 'blue' if node.is_sink else ('red' if node.node_id == msg.path_star[i] else 'green')
-        ax.scatter(x, y, c=color, s=300)
-        ax.text(x + 1, y + 1, f"{node.node_id}", fontsize=10)
+        color = 'blue' if node.is_sink else 'green'
+        if node.node_id in path_star:
+            color = 'red'
+        ax.scatter(x, y, c=color, s=200)
+        ax.text(x + 2, y + 2, f"{node.node_id}", fontsize=10)
         for neighbor in node.neighbors:
             nx, ny = neighbor.location
-            ax.plot([x, nx], [y, ny], 'gray', linestyle='dotted', linewidth=1)
+            ax.plot([x, nx], [y, ny], 'gray', linestyle='dotted', linewidth=0.5)
 
-    for j in range(i):
-        n1 = next(n for n in nodes if n.node_id == msg.path_star[j])
-        n2 = next(n for n in nodes if n.node_id == msg.path_star[j + 1])
-        x1, y1 = n1.location
-        x2, y2 = n2.location
-        ax.plot([x1, x2], [y1, y2], 'orange', linewidth=3)
+    for i in range(len(path_star) - 1):
+        n1 = next(n for n in nodes if n.node_id == path_star[i])
+        n2 = next(n for n in nodes if n.node_id == path_star[i+1])
+        ax.plot([n1.location[0], n2.location[0]], [n1.location[1], n2.location[1]], 'red', linewidth=2)
 
+    ax.set_title("Message Transmission Visualization")
+    ax.set_xlim(0, 120)
+    ax.set_ylim(0, 120)
+    ax.grid(True)
     plt.pause(1)
+
+print("\n🚀 Starting Message Transmission Simulation:\n")
+
+# Monkey patch the transmit_message to update visualization after each hop
+original_transmit_message = transmit_message
+
+def visual_transmit(source_node, message, sink_node, lambda_weight=2, message_bit_length=512):
+    draw_network(message.path_star)
+    original_transmit_message(source_node, message, sink_node, lambda_weight, message_bit_length)
+
+# Replace the transmit_message with visual one
+import msgtrans
+msgtrans.transmit_message = visual_transmit
+
+# Begin transmission
+visual_transmit(s1, msg, sink)
+
+print("\n✅ Final Path Traversed:")
+print(" -> ".join(str(nid) for nid in msg.path_star))
 
 plt.ioff()
 plt.show()
