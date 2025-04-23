@@ -4,6 +4,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import random
 import math
 from Initialization.nodeStructure import SensorNode, SinkNode
+from simulate import simulate
 
 # ------------------ Helper Functions ------------------
 def euclidean_distance(loc1, loc2):
@@ -103,12 +104,18 @@ def step5_forward_message(message, selected_node_id):
 def simulate_message_transmission():
     print("\n--- Simulation Start ---")
     sink = SinkNode(location=(100, 100))
-    source_node = SensorNode("n0", (0, 0), 100, 60)
+    source_node = SensorNode("n0", (0, 0), 100, 40)
     nodes = [
-        SensorNode("n1", (20, 10), 90, 60),
-        SensorNode("n2", (40, 20), 85, 60),
-        SensorNode("n3", (60, 40), 80, 60),
-        SensorNode("n4", (80, 60), 70, 60),
+        SensorNode("n1", (20, 10), 90, 30),
+        SensorNode("n2", (40, 60), 85, 40),
+        SensorNode("n3", (60, 40), 80, 20),
+        SensorNode("n4", (80, 60), 80, 40),
+        SensorNode("n5", (0, 20), 100, 35),
+        SensorNode("n6", (0, 50), 80, 34),
+        SensorNode("n7", (80, 20), 60, 56),
+        SensorNode("n8", (40, 20), 80, 58),
+        SensorNode("n9", (60, 80), 90, 45),
+        SensorNode("n10", (80, 90), 80, 60),
     ]
     all_nodes = {node.node_id: node for node in nodes}
     all_nodes[source_node.node_id] = source_node
@@ -150,11 +157,17 @@ def simulate_message_transmission():
 
     message['final_hop'] = current_node.node_id
     message['total_hops'] = hop + 1
-    return message
+    return {
+    'message': message,
+    'all_nodes': all_nodes,
+    'sink': sink
+    }
 
-# Run the simulation
+
 if __name__ == "__main__":
     result = simulate_message_transmission()
     print("\n--- Simulation Complete ---")
-    print("Message transmission path:", result['path*'])
-    print("Total hops:", result['total_hops'])
+    print("Message transmission path:", result['message']['path*'])
+    print("Total hops:", result['message']['total_hops'])
+    simulate(result['message']['path*'], result['sink'], result['all_nodes'])
+ 
