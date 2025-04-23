@@ -3,12 +3,19 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import random
 import math
+import time
 from Initialization.nodeStructure import SensorNode, SinkNode
 from simulate import simulate
+from malicious_node_management import forward_and_monitor  # Importing the malicious detection function
 
 # ------------------ Helper Functions ------------------
 def euclidean_distance(loc1, loc2):
     return math.sqrt((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2)
+
+def send_message(sender, receiver, message):
+    print(f"[SEND] {sender.node_id} → {receiver.node_id} (MSG id={message['id']})")
+    sender.last_sent_time[receiver.node_id] = time.time()
+    receiver.last_received_message = message.copy()
 
 def encrypt(data):
     return f"enc({data})"
@@ -146,6 +153,18 @@ def simulate_message_transmission():
         responses = step2_neighbors_respond(queries, sink.location, all_nodes)
         metrics = step3_decrypt_and_collect(responses, queries)
         selected_id = step4_select_relay(metrics, current_node, message, all_nodes, L=100)
+
+        # ---- New Integration: Forward and Monitor for Malicious Activity ----
+        v = all_nodes[selected_id]
+        # record send-time so monitor can check delay
+        current_node.last_sent_time[v.node_id] = time.time()
+        # actually send
+        send_message(current_node, v, message)  
+        # now monitor v for up to TD seconds
+        TD = 1.0  
+        forward_and_monitor(current_node, v, message, TD, all_nodes, sink)
+
+        # now update path as usual
         message = step5_forward_message(message, selected_id)
         current_node = all_nodes[selected_id]
         hop += 1
@@ -170,4 +189,3 @@ if __name__ == "__main__":
     print("Message transmission path:", result['message']['path*'])
     print("Total hops:", result['message']['total_hops'])
     simulate(result['message']['path*'], result['sink'], result['all_nodes'])
- 

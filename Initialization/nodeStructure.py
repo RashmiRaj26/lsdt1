@@ -11,6 +11,11 @@ class SensorNode:
         self.anomaly_count = 1
         self.suspicious_count = 0
         self.is_malicious = is_malicious
+        self.last_received_message = None
+        self.last_broadcast_time = None
+        self.forwarded = True
+        self.last_sent_time= {}
+        self.tamper_message = False
 
 
     def __repr__(self):
