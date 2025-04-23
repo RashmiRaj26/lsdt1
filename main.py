@@ -1,15 +1,32 @@
 from Initilzation.network import initialize_network
 from Initilzation.routing_path import reference_routing_path_initialization
+from Message_encryption.encryption import encrypt_data, decrypt_data
 import matplotlib.pyplot as plt
 import networkx as nx
 
-# Step 1: Initialize the network
-G, sensor_nodes, sink_node, positions = initialize_network()
+# Step 1: Initialize the network with 10 sensor nodes
+G, sensor_nodes, sink_node, positions = initialize_network(num_nodes=10)
 
-# Step 2: Initialize routing paths based on the algorithm
+# Step 2: Generate sink node keys
+# sink_node.generate_keys()
+
+# Step 3: Initialize routing paths based on the algorithm
 reference_routing_path_initialization(G, sensor_nodes, sink_node)
 
-# Step 3: Visualization function with arrows
+# Step 4: Take user input message
+message = input("Enter message to encrypt and send to sink node: ")
+
+# Pick a sensor node to send the message (e.g., node with ID 0)
+encrypted = encrypt_data(message, sink_node)
+print("\n🔒 Encrypted Message:")
+print(encrypted)
+
+# Step 5: Sink node decrypts the message
+decrypted = decrypt_data(sink_node, encrypted)
+print("\n🔓 Decrypted Message at Sink Node:")
+print(decrypted)
+
+# Step 6: Visualize the network
 def visualize_network_with_radius(G, sensor_nodes, sink_node, positions, area_size=100):
     plt.figure(figsize=(10, 10))
     
@@ -32,7 +49,7 @@ def visualize_network_with_radius(G, sensor_nodes, sink_node, positions, area_si
                 x1, y1 = positions[src]
                 x2, y2 = positions[dst]
                 dx, dy = x2 - x1, y2 - y1
-                plt.arrow(x1, y1, dx * 0.85, dy * 0.85,  # Scale to avoid overshooting
+                plt.arrow(x1, y1, dx * 0.85, dy * 0.85,
                           head_width=1.5, length_includes_head=True, color='green', alpha=0.7)
 
     plt.title('Wireless Sensor Network with Routing Arrows')
@@ -43,5 +60,4 @@ def visualize_network_with_radius(G, sensor_nodes, sink_node, positions, area_si
     plt.grid()
     plt.show()
 
-# Step 4: Visualize the network
 visualize_network_with_radius(G, sensor_nodes, sink_node, positions)
