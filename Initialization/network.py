@@ -1,5 +1,3 @@
-# network_init.py
-
 import numpy as np
 import networkx as nx
 import random
@@ -7,7 +5,8 @@ from sympy import isprime, nextprime
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
-from Initilzation.nodeStructure import SensorNode, SinkNode
+from Initialization.nodeStructure import SensorNode, SinkNode
+from Initialization.routing_path import initialize_routing  # Import the routing initialization function
 
 def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmission_range=20, seed=42):
     np.random.seed(seed)
@@ -35,7 +34,7 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
             if np.linalg.norm(np.array(positions[i]) - np.array(positions[j])) <= transmission_range:
                 G.add_edge(i, j)
 
-    # 🚨 Create and setup SinkNode with all necessary properties
+    # Create and setup SinkNode with all necessary properties
     sink_location = (np.random.uniform(0, area_size), np.random.uniform(0, area_size))
     sink_node = SinkNode(location=sink_location)
 
@@ -93,5 +92,8 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
     # Add sink node location to the 'positions' dictionary
     sink_id = 'sink'
     positions[sink_id] = sink_node.location
-    
+
+    # Initialize routing paths from the sink node to all sensor nodes
+    initialize_routing(sink_node, sensor_nodes, G)
+
     return G, sensor_nodes, sink_node, positions

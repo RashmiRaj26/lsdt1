@@ -1,5 +1,5 @@
-from Initilzation.network import initialize_network
-from Initilzation.routing_path import reference_routing_path_initialization
+from Initialization.network import initialize_network
+from Initialization.routing_path import reference_routing_path_initialization
 from Message_encryption.encryption import encrypt_data, decrypt_data
 import matplotlib.pyplot as plt
 import networkx as nx

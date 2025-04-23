@@ -25,6 +25,7 @@ class SensorNode:
 
 class SinkNode:
     def __init__(self, location):
+        self.node_id = None
         self.location = location
         self.public_key = None
         self.private_key = None
