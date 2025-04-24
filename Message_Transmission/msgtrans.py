@@ -8,7 +8,6 @@ from Initialization.network import initialize_network
 from Initialization.nodeStructure import SensorNode, SinkNode
 from simulate import simulate
 from malicious_node_management import forward_and_monitor  # Importing the malicious detection function
-
 # ------------------ Helper Functions ------------------
 def euclidean_distance(loc1, loc2):
     return math.sqrt((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2)
@@ -132,11 +131,22 @@ def simulate_message_transmission():
 
     while hop < max_hops:
         print(f"\n--- Hop {hop + 1} ---")
+        print(f"Current Node: {current_node.node_id}")
         
-        # Get neighbors within communication radius
+        # ✅ Check if sink is within communication range
+        dist_to_sink = euclidean_distance(current_node.location, sink.location)
+        print(f"Distance to sink: {dist_to_sink}, Comm range: {current_node.communication_radius}")
+
+        if dist_to_sink <= current_node.communication_radius:
+            print(f"Sink is within range of Node {current_node.node_id}. Forwarding message to sink.")
+            message['path*'].append('sink')
+            print("Message reached the Sink Node!")
+            break  # ✅ Exit the loop after message is delivered
+
+        # ✅ Find neighbors (excluding already visited)
         neighbors = [
-            node for node_id, node in sensor_nodes.items()
-            if node.node_id not in message['path*']
+            node for node_id, node in all_nodes.items()
+            if node_id != current_node.node_id and node_id not in message['path*']
             and euclidean_distance(current_node.location, node.location) <= current_node.communication_radius
         ]
 
@@ -144,7 +154,6 @@ def simulate_message_transmission():
             print("No neighbors within range. Breaking the loop.")
             break
 
-        print(f"Current Node: {current_node.node_id}")
         queries = step1_send_query(current_node, message, neighbors, current_node.communication_radius)
         responses = step2_neighbors_respond(queries, sink.location, all_nodes)
         metrics = step3_decrypt_and_collect(responses, queries)
@@ -159,11 +168,6 @@ def simulate_message_transmission():
         current_node = all_nodes[selected_id]
         hop += 1
 
-        if euclidean_distance(current_node.location, sink.location) <= current_node.communication_radius:
-            message['path*'].append('sink')
-            print(f"Message reached the Sink Node!")
-            break
-
     message['final_hop'] = current_node.node_id
     message['total_hops'] = hop + 1
     
@@ -173,9 +177,15 @@ def simulate_message_transmission():
         'sink': sink
     }
 
+# ------------------ Main Simulation Loop ------------------
 if __name__ == "__main__":
+    
+    # print(f"\n--- Transmission {i+1} ---")
     result = simulate_message_transmission()
     print("\n--- Simulation Complete ---")
     print("Message transmission path:", result['message']['path*'])
     print("Total hops:", result['message']['total_hops'])
-    simulate(result['message']['path*'], result['sink'], result['all_nodes'])
+        
+        # Generate a random color for each transmission
+        # color = (random.random(), random.random(), random.random())  # RGB color
+    simulate(result['message']['path*'], result['sink'], result['all_nodes'], delay=1.5)

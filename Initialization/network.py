@@ -13,10 +13,10 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
 
     # Define manually set or semi-random coordinates (modify these as needed)
     predefined_positions = [
-        (10, 20), (20, 35), (0, 40), (40, 30), (50, 55),
+        (10, 20), (20, 35), (76, 75), (40, 30), (50, 55),
         (25, 34), (70, 60), (80, 20), (90, 40), (60, 42),
-        (25, 55), (35, 65), (89, 15), (90, 35), (65, 75),
-        (75, 25), (85, 50), (20, 80), (60, 85), (80, 90)
+        (25, 55), (35, 65), (89, 15), (48, 49), (65, 75),
+        (75, 25), (85, 50), (65, 70), (60, 85), (80, 90)
     ]
 
     # Clip or pad the list to match the num_nodes
@@ -41,7 +41,7 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
                 G.add_edge(i, j)
 
     # Place the sink node (you can also customize this)
-    sink_location = (61, 55)  # Change this manually if needed
+    sink_location = (60, 60)  # Change this manually if needed
     sink_node = SinkNode(location=sink_location)
     sink_node.id = 'sink'
     sink_node.communication_radius = transmission_range  # FIX ADDED HERE

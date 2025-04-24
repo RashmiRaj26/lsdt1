@@ -33,11 +33,13 @@ def simulate(path, sink, all_nodes, delay=1.0):
         plt.pause(delay)  # Delay to simulate the message transmission
 
     # After loop: Make sure to plot the last line to the sink node
-    last_node = all_nodes[path[-1]] if path[-1] != 'sink' else sink
-    ax.plot([last_node.location[0], sink.location[0]],
-            [last_node.location[1], sink.location[1]], 'g--', linewidth=2)
+    # Only plot the line to the sink if the sink is actually reached
+    if path[-1] == 'sink':
+        second_last = all_nodes[path[-2]]
+        ax.plot([second_last.location[0], sink.location[0]],
+            [second_last.location[1], sink.location[1]], 'g--', linewidth=2)
 
-    # Highlight the last node (the sink)
+    # Highlight the sink node again to show final reception
     ax.plot(sink.location[0], sink.location[1], 'ro', markersize=12)
 
     plt.draw()  # Redraw the final state

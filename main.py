@@ -41,7 +41,7 @@ shares = generate_shares(encrypted, t, routing_table, "node1")
 for share in shares:
     print(f"Share {share['index']}: {share['share']}\n  Hash: {share['hash']}\n  Path: {share['path']}\n")
 
-decrypted = recover_original_data(shares,sink_node,"node1",routing_table,sink_node.private_key)
+# decrypted = recover_original_data(shares,sink_node,"node1",routing_table,sink_node.private_key)
 
 
 # Step 6: Visualize the network

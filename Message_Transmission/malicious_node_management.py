@@ -21,16 +21,12 @@ node_reputation = defaultdict(lambda: {'gamma': 1, 'k': 0, 'pv': 1.0})
 
 
 def compute_hash(data):
-    """
-    Compute SHA-256 hash of the given data.
-    """
+    
     return hashlib.sha256(str(data).encode()).hexdigest()
 
 
 def forward_and_monitor(u, v, message, TD, all_nodes, sink):
-    """
-    u sends message to v and monitors its behavior for malicious activity.
-    """
+   
     
     original_signature = (message['id'], message['TS'], tuple(message['path*']))
     message_hash = compute_hash(original_signature)
@@ -67,9 +63,7 @@ def mark_suspicious(u, v, message, sink, all_nodes):
 
 
 def forward_report_to_sink(start_node, report, avoid_node, all_nodes, sink):
-    """
-    Simulate multi-hop report routing to the sink avoiding the suspicious node.
-    """
+    
     current_node = start_node
     path = [current_node.node_id]
     while current_node and current_node.node_id != 'sink':
