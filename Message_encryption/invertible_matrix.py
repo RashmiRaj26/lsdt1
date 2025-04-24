@@ -1,3 +1,4 @@
+# matrix_utils.py
 import numpy as np
 
 def is_invertible_f2(matrix):
@@ -7,7 +8,7 @@ def is_invertible_f2(matrix):
     except np.linalg.LinAlgError:
         return False
 
-def generate_invertible_cyclic_matrix(t):
+def generate_cyclic_matrix(t):
     if t == 2:
         B = np.array([[0, 1],
                       [1, 0]], dtype=np.uint8)
@@ -32,16 +33,8 @@ def generate_invertible_cyclic_matrix(t):
 
     return B % 2
 
-if __name__ == "__main__":
-    t = int(input("Enter t (≥ 2): "))
-    B = generate_invertible_cyclic_matrix(t)
-
-    print("\nGenerated Matrix B over F2:")
-    for row in B:
-        print(" ".join(map(str, row)))
-
-    try:
-        inv = np.linalg.inv(B % 2)
-        print("\n✅ Matrix is invertible over F2.")
-    except np.linalg.LinAlgError:
-        print("\n❌ Matrix is NOT invertible over F2.")
+def generate_invertible_cyclic_matrix(t):
+    B = generate_cyclic_matrix(t)
+    if not is_invertible_f2(B):
+        raise ValueError("Generated matrix is not invertible over F2.")
+    return B

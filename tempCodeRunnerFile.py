@@ -1,1 +1,1 @@
-sink_node
+for share in shares:

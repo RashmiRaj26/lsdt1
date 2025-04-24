@@ -1,7 +1,7 @@
 import numpy as np
 
 def f(n, d):
-    return n + d  # Simple potential function
+    return n + d  
 
 def distance(a, b):
     return np.linalg.norm(np.array(a) - np.array(b))
