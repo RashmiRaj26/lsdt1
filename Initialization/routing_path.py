@@ -1,55 +1,52 @@
+# routing_path.py
+
 import numpy as np
 
-def f(n, d):
-    return n + d  
+def update_routing(node_u, node_v, PPK, sensor_nodes):
+    change = 0
 
-def distance(a, b):
-    return np.linalg.norm(np.array(a) - np.array(b))
+    if node_v.SM is None:
+        node_v.SM = PPK
+        change = 1
+        dvs = np.linalg.norm(np.array(node_v.location) - np.array(PPK["Los"]))
+        n = len(node_u.routing_paths)
+        Pv = PPK["f"](n + 1, dvs) if "f" in PPK else 3  # Default hop value if function is not defined
 
-def reference_routing_path_initialization(G, sensor_nodes, sink_node):
-    PPK = "public_params_example"
-    sink_id = 'sink'
+        node_v.routing_paths = [path + [node_v.id] for path in node_u.routing_paths]
+        node_v.SM["hop"] = Pv
+    else:
+        for path in node_u.routing_paths:
+            if path not in node_v.routing_paths:
+                if len(path) < node_v.SM["hop"]:
+                    node_v.routing_paths.append(path + [node_v.id])
+                    change = 1
 
-    G.add_node(sink_id, pos=sink_node.location)
-    frontier = []
+    if change == 1:
+        for neighbor in node_v.neighbors:
+            if neighbor != node_u.id:
+                update_routing(node_v, sensor_nodes[neighbor], node_v.SM, sensor_nodes)
 
-    for node_id, sensor in sensor_nodes.items():
-        d = distance(sensor.location, sink_node.location)
-        if d <= sensor.communication_radius:
-            G.add_edge(sink_id, node_id)
-            path = [[sink_id, node_id]]
-            sensor.routing_paths = path
-            sensor.Pv = f(1, d)
-            sensor.PPK = PPK
-            frontier.append((sink_id, node_id, path))
+def initialize_routing(sink_node, sensor_nodes, G):
+    for neighbor in G.neighbors(sink_node.id):
+        if np.linalg.norm(np.array(sink_node.location) - np.array(sensor_nodes[neighbor].location)) <= sink_node.communication_radius:
+            neighbor_node = sensor_nodes[neighbor]
+            neighbor_node.routing_paths = [[sink_node.id, neighbor]]  # Sink to node
+            neighbor_node.SM = {
+                "PPK": sink_node.SM["PPK"],
+                "Los": sink_node.location,
+                "hop": 3,
+                "R": {neighbor}
+            }
 
-    visited = set()
+            for neighbor_of_neighbor in G.neighbors(neighbor):
+                if neighbor_of_neighbor != sink_node.id:
+                    update_routing(neighbor_node, sensor_nodes[neighbor_of_neighbor], neighbor_node.SM, sensor_nodes)
 
-    while frontier:
-        u, v, Tu = frontier.pop(0)
-        node_v = sensor_nodes[v]
-        change = False
+    for neighbor in G.neighbors(sink_node.id):
+        propagate_routing(neighbor, sensor_nodes, G)
 
-        if not hasattr(node_v, 'routing_paths') or not node_v.routing_paths:
-            dvs = distance(sink_node.location, node_v.location)
-            max_hops = max(len(p) - 1 for p in Tu)
-            node_v.Pv = f(max_hops + 1, dvs)
-            node_v.PPK = PPK
-            node_v.routing_paths = [p + [v] for p in Tu]
-            change = True
-        else:
-            new_paths = []
-            for p in Tu:
-                if p not in node_v.routing_paths and len(p) < node_v.Pv:
-                    new_paths.append(p + [v])
-            if new_paths:
-                node_v.routing_paths.extend(new_paths)
-                change = True
-
-        if change or (u, v) not in visited:
-            visited.add((u, v))
-            for neighbor in G.neighbors(v):
-                if neighbor != u and isinstance(neighbor, int):
-                    frontier.append((v, neighbor, node_v.routing_paths))
-
-    G.remove_node(sink_id)
+def propagate_routing(node_id, sensor_nodes, G):
+    node = sensor_nodes[node_id]
+    for neighbor in node.neighbors:
+        if neighbor != node.id:
+            update_routing(node, sensor_nodes[neighbor], node.SM, sensor_nodes)

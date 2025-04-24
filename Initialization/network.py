@@ -1,5 +1,3 @@
-# network_init.py
-
 import numpy as np
 import networkx as nx
 import random
@@ -8,26 +6,33 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from Initialization.nodeStructure import SensorNode, SinkNode
+from Initialization.routing_path import initialize_routing  # Import the routing initialization function
 
-def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmission_range=20, seed=42):
+def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmission_range=30, seed=42):
     np.random.seed(seed)
 
-    # Generate random positions for sensor nodes
-    positions = {
-        i: (np.random.uniform(0, area_size), np.random.uniform(0, area_size))
-        for i in range(num_nodes)
-    }
+    # Define manually set or semi-random coordinates (modify these as needed)
+    predefined_positions = [
+        (10, 20), (20, 35), (0, 40), (40, 30), (50, 55),
+        (25, 34), (70, 60), (80, 20), (90, 40), (60, 42),
+        (25, 55), (35, 65), (89, 15), (90, 35), (65, 75),
+        (75, 25), (85, 50), (20, 80), (60, 85), (80, 90)
+    ]
 
-    # Create graph and initialize sensor nodes
+    # Clip or pad the list to match the num_nodes
+    if len(predefined_positions) < num_nodes:
+        raise ValueError("Not enough predefined positions. Add more to the list.")
+    positions = {i: predefined_positions[i] for i in range(num_nodes)}
+
     G = nx.Graph()
     sensor_nodes = {}
 
-    for node_id in range(num_nodes):
+    for node_id, pos in positions.items():
         initial_energy = np.random.uniform(E0, (1 + theta) * E0)
         communication_radius = np.random.uniform(5, transmission_range)
-        sensor_node = SensorNode(node_id, positions[node_id], initial_energy, communication_radius)
+        sensor_node = SensorNode(node_id, pos, initial_energy, communication_radius)
         sensor_nodes[node_id] = sensor_node
-        G.add_node(node_id, pos=positions[node_id], energy=initial_energy, radius=communication_radius)
+        G.add_node(node_id, pos=pos, energy=initial_energy, radius=communication_radius)
 
     # Add edges based on transmission range
     for i in range(num_nodes):
@@ -35,13 +40,15 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
             if np.linalg.norm(np.array(positions[i]) - np.array(positions[j])) <= transmission_range:
                 G.add_edge(i, j)
 
-    # 🚨 Create and setup SinkNode with all necessary properties
-    sink_location = (np.random.uniform(0, area_size), np.random.uniform(0, area_size))
+    # Place the sink node (you can also customize this)
+    sink_location = (61, 55)  # Change this manually if needed
     sink_node = SinkNode(location=sink_location)
+    sink_node.id = 'sink'
+    sink_node.communication_radius = transmission_range  # FIX ADDED HERE
+    G.add_node(sink_node.id, pos=sink_node.location)
+    positions[sink_node.id] = sink_node.location
 
-    # Start full initialization inside this function
-    Los = sink_location
-
+    # Cryptographic Setup
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
@@ -73,9 +80,8 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
     q = generate_large_prime()
     g = generate_generator(q)
 
-    # Construct PPK and SM directly in the sink_node
     PPK = {
-        "Los": Los,
+        "Los": sink_location,
         "pk": public_key,
         "f": max_hop_calculator,
         "λ": λ,
@@ -90,8 +96,7 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
         "R": set()
     }
 
-    # Add sink node location to the 'positions' dictionary
-    sink_id = 'sink'
-    positions[sink_id] = sink_node.location
-    
+    # Initialize routing paths from the sink node to all sensor nodes
+    initialize_routing(sink_node, sensor_nodes, G)
+
     return G, sensor_nodes, sink_node, positions

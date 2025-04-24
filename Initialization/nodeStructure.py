@@ -1,12 +1,22 @@
 # nodes.py
 
 class SensorNode:
-    def __init__(self, node_id, location, initial_energy, communication_radius):
+    def __init__(self, node_id, location, initial_energy, communication_radius,is_malicious=False):
         self.node_id = node_id
         self.location = location
         self.initial_energy = initial_energy
         self.communication_radius = communication_radius
         self.routing_paths = []
+        self.reputation = 1.0
+        self.anomaly_count = 1
+        self.suspicious_count = 0
+        self.is_malicious = is_malicious
+        self.last_received_message = None
+        self.last_broadcast_time = None
+        self.forwarded = True
+        self.last_sent_time= {}
+        self.tamper_message = False
+
 
     def __repr__(self):
         return (f"SensorNode(id={self.node_id}, location={self.location}, "
@@ -15,6 +25,7 @@ class SensorNode:
 
 class SinkNode:
     def __init__(self, location):
+        self.node_id = None
         self.location = location
         self.public_key = None
         self.private_key = None

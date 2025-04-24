@@ -3,11 +3,20 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import random
 import math
+import time
+from Initialization.network import initialize_network
 from Initialization.nodeStructure import SensorNode, SinkNode
+from simulate import simulate
+from malicious_node_management import forward_and_monitor  # Importing the malicious detection function
 
 # ------------------ Helper Functions ------------------
 def euclidean_distance(loc1, loc2):
     return math.sqrt((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2)
+
+def send_message(sender, receiver, message):
+    print(f"[SEND] {sender.node_id} → {receiver.node_id} (MSG id={message['id']})")
+    sender.last_sent_time[receiver.node_id] = time.time()
+    receiver.last_received_message = message.copy()
 
 def encrypt(data):
     return f"enc({data})"
@@ -102,16 +111,13 @@ def step5_forward_message(message, selected_node_id):
 # ------------------ Message Transmission Simulation ------------------
 def simulate_message_transmission():
     print("\n--- Simulation Start ---")
-    sink = SinkNode(location=(100, 100))
-    source_node = SensorNode("n0", (0, 0), 100, 60)
-    nodes = [
-        SensorNode("n1", (20, 10), 90, 60),
-        SensorNode("n2", (40, 20), 85, 60),
-        SensorNode("n3", (60, 40), 80, 60),
-        SensorNode("n4", (80, 60), 70, 60),
-    ]
-    all_nodes = {node.node_id: node for node in nodes}
-    all_nodes[source_node.node_id] = source_node
+    
+    # Use the actual initialized network
+    G, sensor_nodes, sink, positions = initialize_network()
+    
+    source_node = list(sensor_nodes.values())[0]  # Let's pick the first sensor node as the source for simplicity
+    all_nodes = sensor_nodes.copy()
+    all_nodes[sink.node_id] = sink
 
     message = {
         'id': 'm1',
@@ -122,12 +128,16 @@ def simulate_message_transmission():
 
     current_node = source_node
     hop = 0
-    while hop < sink.max_hops:
+    max_hops = sink.SM['PPK']['f'](len(sensor_nodes))  # Use the max hop calculator from PPK
+
+    while hop < max_hops:
         print(f"\n--- Hop {hop + 1} ---")
+        
+        # Get neighbors within communication radius
         neighbors = [
-            node for node in nodes 
-            if node.node_id not in message['path*'] and 
-            euclidean_distance(current_node.location, node.location) <= current_node.communication_radius
+            node for node_id, node in sensor_nodes.items()
+            if node.node_id not in message['path*']
+            and euclidean_distance(current_node.location, node.location) <= current_node.communication_radius
         ]
 
         if not neighbors:
@@ -139,6 +149,12 @@ def simulate_message_transmission():
         responses = step2_neighbors_respond(queries, sink.location, all_nodes)
         metrics = step3_decrypt_and_collect(responses, queries)
         selected_id = step4_select_relay(metrics, current_node, message, all_nodes, L=100)
+
+        v = all_nodes[selected_id]
+        current_node.last_sent_time[v.node_id] = time.time()
+        send_message(current_node, v, message)
+        forward_and_monitor(current_node, v, message, TD=1.0, all_nodes=all_nodes, sink=sink)
+
         message = step5_forward_message(message, selected_id)
         current_node = all_nodes[selected_id]
         hop += 1
@@ -150,11 +166,16 @@ def simulate_message_transmission():
 
     message['final_hop'] = current_node.node_id
     message['total_hops'] = hop + 1
-    return message
+    
+    return {
+        'message': message,
+        'all_nodes': all_nodes,
+        'sink': sink
+    }
 
-# Run the simulation
 if __name__ == "__main__":
     result = simulate_message_transmission()
     print("\n--- Simulation Complete ---")
-    print("Message transmission path:", result['path*'])
-    print("Total hops:", result['total_hops'])
+    print("Message transmission path:", result['message']['path*'])
+    print("Total hops:", result['message']['total_hops'])
+    simulate(result['message']['path*'], result['sink'], result['all_nodes'])
