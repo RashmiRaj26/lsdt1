@@ -20,7 +20,7 @@ def simulate(path, sink, all_nodes, delay=1.0):
     # Step-by-step transmission animation
     for i in range(len(path) - 1):
         node_a = all_nodes[path[i]] if path[i] != 'sink' else sink
-        node_b = all_nodes[path[i+1]] if path[i+1] != 'sink' else sink
+        node_b = all_nodes[path[i + 1]] if path[i + 1] != 'sink' else sink
 
         # Plot the link line
         ax.plot([node_a.location[0], node_b.location[0]],
@@ -28,8 +28,18 @@ def simulate(path, sink, all_nodes, delay=1.0):
 
         # Highlight the transmitting node
         ax.plot(node_a.location[0], node_a.location[1], 'go', markersize=10)
-        plt.pause(delay)
 
-    # Final line to the sink
+        plt.draw()  # Force redraw of the plot after each update
+        plt.pause(delay)  # Delay to simulate the message transmission
+
+    # After loop: Make sure to plot the last line to the sink node
+    last_node = all_nodes[path[-1]] if path[-1] != 'sink' else sink
+    ax.plot([last_node.location[0], sink.location[0]],
+            [last_node.location[1], sink.location[1]], 'g--', linewidth=2)
+
+    # Highlight the last node (the sink)
     ax.plot(sink.location[0], sink.location[1], 'ro', markersize=12)
-    plt.show()
+
+    plt.draw()  # Redraw the final state
+    plt.show()  # Show the final plot with the complete path
+

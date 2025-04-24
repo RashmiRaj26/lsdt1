@@ -4,6 +4,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import random
 import math
 import time
+from Initialization.network import initialize_network
 from Initialization.nodeStructure import SensorNode, SinkNode
 from simulate import simulate
 from malicious_node_management import forward_and_monitor  # Importing the malicious detection function
@@ -110,22 +111,13 @@ def step5_forward_message(message, selected_node_id):
 # ------------------ Message Transmission Simulation ------------------
 def simulate_message_transmission():
     print("\n--- Simulation Start ---")
-    sink = SinkNode(location=(100, 100))
-    source_node = SensorNode("n0", (0, 0), 100, 40)
-    nodes = [
-        SensorNode("n1", (20, 10), 90, 30),
-        SensorNode("n2", (40, 60), 85, 40),
-        SensorNode("n3", (60, 40), 80, 20),
-        SensorNode("n4", (80, 60), 80, 40),
-        SensorNode("n5", (0, 20), 100, 35),
-        SensorNode("n6", (0, 50), 80, 34),
-        SensorNode("n7", (80, 20), 60, 56),
-        SensorNode("n8", (40, 20), 80, 58),
-        SensorNode("n9", (60, 80), 90, 45),
-        SensorNode("n10", (80, 90), 80, 60),
-    ]
-    all_nodes = {node.node_id: node for node in nodes}
-    all_nodes[source_node.node_id] = source_node
+    
+    # Use the actual initialized network
+    G, sensor_nodes, sink, positions = initialize_network()
+    
+    source_node = list(sensor_nodes.values())[0]  # Let's pick the first sensor node as the source for simplicity
+    all_nodes = sensor_nodes.copy()
+    all_nodes[sink.node_id] = sink
 
     message = {
         'id': 'm1',
@@ -136,12 +128,16 @@ def simulate_message_transmission():
 
     current_node = source_node
     hop = 0
-    while hop < sink.max_hops:
+    max_hops = sink.SM['PPK']['f'](len(sensor_nodes))  # Use the max hop calculator from PPK
+
+    while hop < max_hops:
         print(f"\n--- Hop {hop + 1} ---")
+        
+        # Get neighbors within communication radius
         neighbors = [
-            node for node in nodes 
-            if node.node_id not in message['path*'] and 
-            euclidean_distance(current_node.location, node.location) <= current_node.communication_radius
+            node for node_id, node in sensor_nodes.items()
+            if node.node_id not in message['path*']
+            and euclidean_distance(current_node.location, node.location) <= current_node.communication_radius
         ]
 
         if not neighbors:
@@ -154,17 +150,11 @@ def simulate_message_transmission():
         metrics = step3_decrypt_and_collect(responses, queries)
         selected_id = step4_select_relay(metrics, current_node, message, all_nodes, L=100)
 
-        # ---- New Integration: Forward and Monitor for Malicious Activity ----
         v = all_nodes[selected_id]
-        # record send-time so monitor can check delay
         current_node.last_sent_time[v.node_id] = time.time()
-        # actually send
-        send_message(current_node, v, message)  
-        # now monitor v for up to TD seconds
-        TD = 1.0  
-        forward_and_monitor(current_node, v, message, TD, all_nodes, sink)
+        send_message(current_node, v, message)
+        forward_and_monitor(current_node, v, message, TD=1.0, all_nodes=all_nodes, sink=sink)
 
-        # now update path as usual
         message = step5_forward_message(message, selected_id)
         current_node = all_nodes[selected_id]
         hop += 1
@@ -176,12 +166,12 @@ def simulate_message_transmission():
 
     message['final_hop'] = current_node.node_id
     message['total_hops'] = hop + 1
+    
     return {
-    'message': message,
-    'all_nodes': all_nodes,
-    'sink': sink
+        'message': message,
+        'all_nodes': all_nodes,
+        'sink': sink
     }
-
 
 if __name__ == "__main__":
     result = simulate_message_transmission()
