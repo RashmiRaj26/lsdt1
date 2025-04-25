@@ -179,13 +179,12 @@ def simulate_message_transmission():
 
 # ------------------ Main Simulation Loop ------------------
 if __name__ == "__main__":
-    
-    # print(f"\n--- Transmission {i+1} ---")
-    result = simulate_message_transmission()
-    print("\n--- Simulation Complete ---")
-    print("Message transmission path:", result['message']['path*'])
-    print("Total hops:", result['message']['total_hops'])
-        
-        # Generate a random color for each transmission
-        # color = (random.random(), random.random(), random.random())  # RGB color
-    simulate(result['message']['path*'], result['sink'], result['all_nodes'], delay=1.5)
+    for i in range(3):
+        print(f"\n================== Transmitting share {i + 1} ==================")
+        result = simulate_message_transmission()
+        print("\n--- Simulation Complete ---")
+        print("Message transmission path:", result['message']['path*'])
+        print("Total hops:", result['message']['total_hops'])
+
+        color = (random.random(), random.random(), random.random())  # RGB
+        simulate(result['message']['path*'], result['sink'], result['all_nodes'], delay=1.5, color=color, share_number=i+1)
