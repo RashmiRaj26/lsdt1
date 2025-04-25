@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import time
 
-def simulate(path, sink, all_nodes, delay=1.0, color='g', share_number=None):
+def simulates(path, sink, all_nodes, delay=1.0, color='g', share_number=None):
     fig, ax = plt.subplots()
     ax.set_title("HWSN Message Transmission Visualization")
     ax.set_xlim(0, 120)
