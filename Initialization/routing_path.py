@@ -1,5 +1,3 @@
-# routing_path.py
-
 import numpy as np
 
 def update_routing(node_u, node_v, PPK, sensor_nodes):
@@ -10,7 +8,7 @@ def update_routing(node_u, node_v, PPK, sensor_nodes):
         change = 1
         dvs = np.linalg.norm(np.array(node_v.location) - np.array(PPK["Los"]))
         n = len(node_u.routing_paths)
-        Pv = PPK["f"](n + 1, dvs) if "f" in PPK else 3  # Default hop value if function is not defined
+        Pv = PPK["f"](n + 1, dvs) if "f" in PPK else 3
 
         node_v.routing_paths = [path + [node_v.id] for path in node_u.routing_paths]
         node_v.SM["hop"] = Pv
@@ -30,7 +28,7 @@ def initialize_routing(sink_node, sensor_nodes, G):
     for neighbor in G.neighbors(sink_node.id):
         if np.linalg.norm(np.array(sink_node.location) - np.array(sensor_nodes[neighbor].location)) <= sink_node.communication_radius:
             neighbor_node = sensor_nodes[neighbor]
-            neighbor_node.routing_paths = [[sink_node.id, neighbor]]  # Sink to node
+            neighbor_node.routing_paths = [[sink_node.id, neighbor]]
             neighbor_node.SM = {
                 "PPK": sink_node.SM["PPK"],
                 "Los": sink_node.location,

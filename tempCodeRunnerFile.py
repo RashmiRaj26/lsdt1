@@ -1,1 +1,1 @@
-for share in shares:
+print(" ")

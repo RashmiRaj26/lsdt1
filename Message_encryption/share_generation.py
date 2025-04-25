@@ -4,7 +4,6 @@ import datetime
 import random
 from Message_encryption.invertible_matrix import generate_invertible_cyclic_matrix  
 
-
 def xor_bytes(*args):
     result = bytearray(args[0])
     for b in args[1:]:
@@ -24,31 +23,21 @@ def generate_shares(ciphertext: bytes, t: int, routing_table: dict, node_id: str
     block_size = total_len // t
     if total_len % t != 0:
         block_size += 1
-
-    # Divide ciphertext into t blocks of equal size with padding
     blocks = [
         pad_block(ciphertext[i * block_size: (i + 1) * block_size], block_size)
         for i in range(t)
     ]
 
-    # Generate t linearly independent vectors on F2 (invertible matrix)
     B = generate_invertible_cyclic_matrix(t)
-
-    # Generate bt+1 = b1 ⊕ b2 ⊕ ... ⊕ bt
     bt_plus_1 = np.bitwise_xor.reduce(B, axis=0)
-
-    # Full matrix with t+1 linearly independent vectors
+    share_packet_t_plus_1=ciphertext
     B_full = np.vstack((B, bt_plus_1))
 
-    # Select t+1 routing paths randomly
     paths = random.sample(routing_table[node_id], t + 1)
 
-    # Timestamp for all shares
     timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
-
     shares = []
     for i, row in enumerate(B_full):
-        # XOR block selection based on matrix row
         share = bytearray(block_size)
         for j in range(t):
             if row[j] == 1:
@@ -62,12 +51,18 @@ def generate_shares(ciphertext: bytes, t: int, routing_table: dict, node_id: str
             "index": i + 1,
             "share": share_bytes,
             "hash": hash_val,
-            "path": [paths[i]],     # pathi ∈ Tw
-            "path*": [node_id],     # IDw
-            "timestamp": timestamp, # TS
+            "path": [paths[i]], 
+            "path*": [node_id],    
+            "timestamp": timestamp,
             "block_size": block_size,
             "total_len": total_len
         }
         shares.append(share_packet)
+    
+    
+    for share in shares:
+        print(f"Share {share['index']}: {share['share']}\n  Hash: {share['hash']}\n  Path: {share['path']}\n")
+    shares.append(share_packet_t_plus_1)
+
 
     return shares
