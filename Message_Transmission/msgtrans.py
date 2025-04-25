@@ -122,8 +122,8 @@ def simulate_message_transmission():
     while hop < max_hops:
         print(f"\n--- Hop {hop + 1} ---")
         neighbors = [
-            node for node_id, node in sensor_nodes.items()
-            if node.node_id not in message['path*']
+            node for node_id, node in all_nodes.items()
+            if node_id != current_node.node_id and node_id not in message['path*']
             and euclidean_distance(current_node.location, node.location) <= current_node.communication_radius
         ]
 
@@ -131,7 +131,6 @@ def simulate_message_transmission():
             print("No neighbors within range. Breaking the loop.")
             break
 
-        print(f"Current Node: {current_node.node_id}")
         queries = step1_send_query(current_node, message, neighbors, current_node.communication_radius)
         responses = step2_neighbors_respond(queries, sink.location, all_nodes)
         metrics = step3_decrypt_and_collect(responses, queries)
@@ -146,11 +145,6 @@ def simulate_message_transmission():
         current_node = all_nodes[selected_id]
         hop += 1
 
-        if euclidean_distance(current_node.location, sink.location) <= current_node.communication_radius:
-            message['path*'].append('sink')
-            print(f"Message reached the Sink Node!")
-            break
-
     message['final_hop'] = current_node.node_id
     message['total_hops'] = hop + 1
     
@@ -160,9 +154,15 @@ def simulate_message_transmission():
         'sink': sink
     }
 
+# ------------------ Main Simulation Loop ------------------
 if __name__ == "__main__":
+    
+    # print(f"\n--- Transmission {i+1} ---")
     result = simulate_message_transmission()
     print("\n--- Simulation Complete ---")
     print("Message transmission path:", result['message']['path*'])
     print("Total hops:", result['message']['total_hops'])
-    simulate(result['message']['path*'], result['sink'], result['all_nodes'])
+        
+        # Generate a random color for each transmission
+        # color = (random.random(), random.random(), random.random())  # RGB color
+    simulate(result['message']['path*'], result['sink'], result['all_nodes'], delay=1.5)

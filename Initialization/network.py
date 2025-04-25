@@ -11,10 +11,10 @@ from Initialization.routing_path import initialize_routing
 def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmission_range=30, seed=42):
     np.random.seed(seed)
     predefined_positions = [
-        (10, 20), (20, 35), (0, 40), (40, 30), (50, 55),
+        (10, 20), (20, 35), (76, 75), (40, 30), (50, 55),
         (25, 34), (70, 60), (80, 20), (90, 40), (60, 42),
-        (25, 55), (35, 65), (89, 15), (90, 35), (65, 75),
-        (75, 25), (85, 50), (20, 80), (60, 85), (80, 90)
+        (25, 55), (35, 65), (89, 15), (48, 49), (65, 75),
+        (75, 25), (85, 50), (65, 70), (60, 85), (80, 90)
     ]
     if len(predefined_positions) < num_nodes:
         raise ValueError("Not enough predefined positions. Add more to the list.")
