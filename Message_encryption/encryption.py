@@ -7,11 +7,20 @@ import base64
 import secrets
 
 def encrypt_data(value, sink_node):
-    # Convert float to 8-byte binary (double precision)
-    binary_data = struct.pack("d", value)
+    # Determine type and serialize accordingly
+    if isinstance(value, float):
+        type_flag = b'\x01'
+        binary_data = struct.pack("d", value)
+    elif isinstance(value, str):
+        type_flag = b'\x02'
+        binary_data = value.encode('utf-8')
+    else:
+        raise TypeError("Unsupported data type. Only float and string are allowed.")
+
+    binary_data = type_flag + binary_data  # Prefix with type indicator
 
     keyw = secrets.token_bytes(32)  # AES-256 key
-    iv = secrets.token_bytes(12)    # GCM IV
+    iv = secrets.token_bytes(12)    # 12-byte IV for GCM
 
     cipher = Cipher(algorithms.AES(keyw), modes.GCM(iv), backend=default_backend())
     encryptor = cipher.encryptor()
@@ -30,7 +39,6 @@ def encrypt_data(value, sink_node):
 
     key_len_prefix = struct.pack("I", len(encrypted_key))
     combined = key_len_prefix + encrypted_key + encrypted_payload
-    print("✔️ Original combined data (base64):", base64.b64encode(combined).decode())
     return base64.b64encode(combined).decode('utf-8')
 
 def decrypt_data(sink_node, encoded_combined_data):
@@ -38,11 +46,6 @@ def decrypt_data(sink_node, encoded_combined_data):
     key_len = struct.unpack("I", combined[:4])[0]
     encrypted_key = combined[4:4+key_len]
     encrypted_payload = combined[4+key_len:]
-    # key_len = struct.unpack("I", combined[:4])[0]
-    print("🔑 Declared key_len:", key_len)
-    print("🧩 Actual combined length:", len(combined))
-    print("📦 Expected encrypted_key length:", len(combined[4:4+key_len]))
-    print("🔍 RSA key size (bytes):", sink_node.private_key.key_size // 8)
 
     keyw = sink_node.private_key.decrypt(
         encrypted_key,
@@ -61,5 +64,13 @@ def decrypt_data(sink_node, encoded_combined_data):
     decryptor = cipher.decryptor()
     binary_data = decryptor.update(ciphertext) + decryptor.finalize()
 
-    # Convert binary back to float
-    return struct.unpack("d", binary_data)[0]
+    # First byte is the type flag
+    type_flag = binary_data[0:1]
+    actual_data = binary_data[1:]
+
+    if type_flag == b'\x01':  # float
+        return struct.unpack("d", actual_data)[0]
+    elif type_flag == b'\x02':  # string
+        return actual_data.decode('utf-8')
+    else:
+        raise ValueError("Unknown data type flag in decrypted data.")

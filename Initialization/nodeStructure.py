@@ -1,5 +1,3 @@
-# nodes.py
-
 class SensorNode:
     def __init__(self, node_id, location, initial_energy, communication_radius,is_malicious=False):
         self.node_id = node_id

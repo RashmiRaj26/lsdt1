@@ -7,9 +7,8 @@ import time
 from Initialization.network import initialize_network
 from Initialization.nodeStructure import SensorNode, SinkNode
 from simulate import simulate
-from malicious_node_management import forward_and_monitor  # Importing the malicious detection function
+from malicious_node_management import forward_and_monitor  
 
-# ------------------ Helper Functions ------------------
 def euclidean_distance(loc1, loc2):
     return math.sqrt((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2)
 
@@ -25,9 +24,8 @@ def decrypt(ciphertext):
     return ciphertext.replace("enc(", "").replace(")", "")
 
 def ET(d, L): 
-    return d * 0.1 + L * 0.01  # Simulated energy transmission cost
+    return d * 0.1 + L * 0.01
 
-# ------------------ Step 1 ------------------
 def step1_send_query(node_u, message, neighbor_nodes, Du):
     print("\n--- Step 1: Sending Queries ---")
     queries = {}
@@ -42,8 +40,6 @@ def step1_send_query(node_u, message, neighbor_nodes, Du):
             queries[v.node_id] = query
             print(f"Query sent from Node {node_u.node_id} to Node {v.node_id}: {query}")
     return queries
-
-# ------------------ Step 2 ------------------
 def step2_neighbors_respond(queries, sink_location, all_nodes):
     print("\n--- Step 2: Neighbors Responding ---")
     responses = {}
@@ -63,7 +59,6 @@ def step2_neighbors_respond(queries, sink_location, all_nodes):
         print(f"Response from Node {v.node_id}: {response}")
     return responses
 
-# ------------------ Step 3 ------------------
 def step3_decrypt_and_collect(responses, queries):
     print("\n--- Step 3: Decrypting and Collecting Responses ---")
     metrics = {}
@@ -79,7 +74,6 @@ def step3_decrypt_and_collect(responses, queries):
         print(f"Decrypted Data from Node {v_id}: {metrics[v_id]}")
     return metrics
 
-# ------------------ Step 4 ------------------
 def step4_select_relay(metrics, node_u, message, all_nodes, L, lambda_val=2):
     print("\n--- Step 4: Selecting Relay Node ---")
     IF_values = {}
@@ -100,7 +94,6 @@ def step4_select_relay(metrics, node_u, message, all_nodes, L, lambda_val=2):
     print(f"Selected Relay Node: {best_node} with IF value: {IF_values[best_node]}")
     return best_node
 
-# ------------------ Step 5 ------------------
 def step5_forward_message(message, selected_node_id):
     print("\n--- Step 5: Forwarding Message ---")
     new_message = message.copy()
@@ -108,14 +101,11 @@ def step5_forward_message(message, selected_node_id):
     print(f"Message forwarded to Node {selected_node_id}. Path so far: {new_message['path*']}")
     return new_message
 
-# ------------------ Message Transmission Simulation ------------------
 def simulate_message_transmission():
     print("\n--- Simulation Start ---")
-    
-    # Use the actual initialized network
     G, sensor_nodes, sink, positions = initialize_network()
     
-    source_node = list(sensor_nodes.values())[0]  # Let's pick the first sensor node as the source for simplicity
+    source_node = list(sensor_nodes.values())[0] 
     all_nodes = sensor_nodes.copy()
     all_nodes[sink.node_id] = sink
 
@@ -128,12 +118,9 @@ def simulate_message_transmission():
 
     current_node = source_node
     hop = 0
-    max_hops = sink.SM['PPK']['f'](len(sensor_nodes))  # Use the max hop calculator from PPK
-
+    max_hops = sink.SM['PPK']['f'](len(sensor_nodes)) 
     while hop < max_hops:
         print(f"\n--- Hop {hop + 1} ---")
-        
-        # Get neighbors within communication radius
         neighbors = [
             node for node_id, node in sensor_nodes.items()
             if node.node_id not in message['path*']

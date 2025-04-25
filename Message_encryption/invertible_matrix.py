@@ -1,4 +1,3 @@
-# matrix_utils.py
 import numpy as np
 
 def is_invertible_f2(matrix):
