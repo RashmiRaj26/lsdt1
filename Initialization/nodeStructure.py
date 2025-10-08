@@ -21,6 +21,13 @@ class SensorNode:
                 f"initial_energy={self.initial_energy}, "
                 f"communication_radius={self.communication_radius})")
 
+    def consume_energy(self, amount):
+        """Reduce the node's stored energy by amount (floor at 0)."""
+        try:
+            self.initial_energy = max(0.0, self.initial_energy - amount)
+        except Exception:
+            pass
+
 class SinkNode:
     def __init__(self, location):
         self.node_id = None

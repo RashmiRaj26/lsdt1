@@ -11,7 +11,7 @@ from Message_Transmission.msgtrans import simulate_message_transmission
 from Message_Transmission.simulate import simulates
 import random
 
-G, sensor_nodes, sink_node, positions = initialize_network(num_nodes=10)
+G, sensor_nodes, sink_node, positions = initialize_network(num_nodes=30)
 
 message = input("Enter message to encrypt and send to sink node: ")
 
@@ -27,7 +27,8 @@ shares = generate_shares(encrypted, t, routing_table, "node0")
 print(" ")
 for i in range(3):
     print(f"\n================== Transmitting share {i + 1} ==================")
-    result = simulate_message_transmission()
+    # pass the initialized network so energy changes persist across shares
+    result = simulate_message_transmission(sensor_nodes=sensor_nodes, sink=sink_node, positions=positions)
     print("\n--- Simulation Complete ---")
     print("Message transmission path:", result['message']['path*'])
     print("Total hops:", result['message']['total_hops'])

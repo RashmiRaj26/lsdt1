@@ -8,12 +8,22 @@ def euclidean_distance(loc1, loc2):
     return math.sqrt((loc1[0] - loc2[0])**2 + (loc1[1] - loc2[1])**2)
 
 def send_message(u, v, message):
-    print(f"[SEND] {u.node_id} → {v.node_id} (MSG id={message['id']})")
-    
+    print(f"[SEND] {u.node_id} -> {v.node_id} (MSG id={message['id']})")
+    # energy cost per send (constant)
+    COST_PER_SEND = 10.0
+
     if not hasattr(u, 'last_sent_time'):
         u.last_sent_time = {}
     u.last_sent_time[v.node_id] = time.time()
-    
+
+    # deduct energy from sender via consume_energy if available
+    if hasattr(u, 'consume_energy'):
+        try:
+            u.consume_energy(COST_PER_SEND)
+            print(f"Node {u.node_id} energy reduced by {COST_PER_SEND}. New energy: {getattr(u, 'initial_energy', 'unknown')}")
+        except Exception:
+            print(f"Warning: couldn't update energy for Node {u.node_id}")
+
     v.last_received_message = message.copy()
 
 suspicious_nodes = set()

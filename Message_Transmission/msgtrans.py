@@ -13,8 +13,25 @@ def euclidean_distance(loc1, loc2):
     return math.sqrt((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2)
 
 def send_message(sender, receiver, message):
-    print(f"[SEND] {sender.node_id} → {receiver.node_id} (MSG id={message['id']})")
+    print(f"[SEND] {sender.node_id} -> {receiver.node_id} (MSG id={message['id']})")
+    # energy cost per send (constant)
+    COST_PER_SEND = 10.0
+
+    # record send timestamp
+    if not hasattr(sender, 'last_sent_time'):
+        sender.last_sent_time = {}
     sender.last_sent_time[receiver.node_id] = time.time()
+
+    # deduct energy from sender if attribute exists
+    # deduct energy from sender via consume_energy if available
+    if hasattr(sender, 'consume_energy'):
+        try:
+            sender.consume_energy(COST_PER_SEND)
+            print(f"Node {sender.node_id} energy reduced by {COST_PER_SEND}. New energy: {getattr(sender, 'initial_energy', 'unknown')}")
+        except Exception:
+            print(f"Warning: couldn't update energy for Node {sender.node_id}")
+
+    # deliver message copy to receiver
     receiver.last_received_message = message.copy()
 
 def encrypt(data):
@@ -30,7 +47,10 @@ def step1_send_query(node_u, message, neighbor_nodes, Du):
     print("\n--- Step 1: Sending Queries ---")
     queries = {}
     for v in neighbor_nodes:
-        if v.node_id not in message['path*']:
+        # ensure both nodes can reach each other: distance <= min(u.radius, v.radius)
+        dist_uv = euclidean_distance(node_u.location, v.location)
+        effective_range = min(node_u.communication_radius, v.communication_radius)
+        if v.node_id not in message['path*'] and dist_uv <= effective_range:
             alpha_j = random.randint(1, 100)
             query = {
                 'IDu': node_u.node_id,
@@ -102,14 +122,18 @@ def step5_forward_message(message, selected_node_id):
     print(f"Message forwarded to Node {selected_node_id}. Path so far: {new_message['path*']}")
     return new_message
 
-def simulate_message_transmission():
+def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None):
     print("\n--- Simulation Start ---")
-    
-    G, sensor_nodes, sink, positions = initialize_network()
-    
-    source_node = list(sensor_nodes.values())[0] 
+
+    # allow caller to pass an existing network so node energy persists across multiple shares
+    if sensor_nodes is None or sink is None or positions is None:
+        G, sensor_nodes, sink, positions = initialize_network()
+
+    source_node = list(sensor_nodes.values())[0]
     all_nodes = sensor_nodes.copy()
-    all_nodes[sink.node_id] = sink
+    # add sink to all_nodes if not present
+    if getattr(sink, 'node_id', None) not in all_nodes:
+        all_nodes[sink.node_id] = sink
 
     message = {
         'id': 'm1',
@@ -120,7 +144,13 @@ def simulate_message_transmission():
 
     current_node = source_node
     hop = 0
-    max_hops = sink.SM['PPK']['f'](len(sensor_nodes)) 
+    # Allow paths up to the number of sensor nodes so routes have room to reach sink.
+    # Keep the original function as a lower bound for backward compatibility.
+    try:
+        lower_bound = sink.SM['PPK']['f'](len(sensor_nodes))
+    except Exception:
+        lower_bound = 0
+    max_hops = max(lower_bound, len(sensor_nodes))
 
     while hop < max_hops:
         print(f"\n--- Hop {hop + 1} ---")
@@ -136,14 +166,43 @@ def simulate_message_transmission():
             break 
 
         
-        neighbors = [
-            node for node_id, node in all_nodes.items()
-            if node_id != current_node.node_id and node_id not in message['path*']
-            and euclidean_distance(current_node.location, node.location) <= current_node.communication_radius
-        ]
+        # neighbor is valid only if both nodes are within each other's communication radii
+        neighbors = []
+        for node_id, node in all_nodes.items():
+            if node_id == current_node.node_id or node_id in message['path*']:
+                continue
+            dist = euclidean_distance(current_node.location, node.location)
+            if dist <= min(current_node.communication_radius, node.communication_radius):
+                neighbors.append(node)
+        # Detailed diagnostics: list candidates and exclusions
+        candidates = []
+        exclusions = []
+        for node_id, node in all_nodes.items():
+            if node_id == current_node.node_id:
+                continue
+            dist = euclidean_distance(current_node.location, node.location)
+            can_reach = dist <= min(current_node.communication_radius, node.communication_radius)
+            if can_reach:
+                if node_id in message['path*']:
+                    exclusions.append((node_id, dist))
+                else:
+                    candidates.append((node_id, dist))
+        if candidates:
+            print(f"Candidates within mutual range (not in path*): {[ (n,d) for n,d in candidates ]}")
+        if exclusions:
+            print(f"Reachable but excluded (in path*): {[ (n,d) for n,d in exclusions ]}")
 
         if not neighbors:
-            print("No neighbors within range. Breaking the loop.")
+            print("No neighbors within range. Diagnostic info:")
+            # show nearby nodes with distances and their radii for debugging
+            for node_id, node in all_nodes.items():
+                if node_id == current_node.node_id:
+                    continue
+                dist = euclidean_distance(current_node.location, node.location)
+                print(f" - Node {node_id}: dist={dist:.3f}, node.radius={node.communication_radius}, cur.radius={current_node.communication_radius}")
+            dist_sink = euclidean_distance(current_node.location, sink.location)
+            print(f" - Distance to sink: {dist_sink:.3f}, sink.radius={sink.communication_radius}")
+            print("Breaking the loop.")
             break
 
         queries = step1_send_query(current_node, message, neighbors, current_node.communication_radius)
@@ -152,8 +211,7 @@ def simulate_message_transmission():
         selected_id = step4_select_relay(metrics, current_node, message, all_nodes, L=100)
 
         v = all_nodes[selected_id]
-        current_node.last_sent_time[v.node_id] = time.time()
-        send_message(current_node, v, message)
+        # use forward_and_monitor to perform the actual send and monitoring (it calls send_message)
         forward_and_monitor(current_node, v, message, TD=1.0, all_nodes=all_nodes, sink=sink)
 
         message = step5_forward_message(message, selected_id)
@@ -162,6 +220,8 @@ def simulate_message_transmission():
 
     message['final_hop'] = current_node.node_id
     message['total_hops'] = hop + 1
+    if hop >= max_hops:
+        print(f"Stopped because max_hops={max_hops} reached. Consider increasing max_hops or adjusting routing.")
     
     return {
         'message': message,
