@@ -18,7 +18,6 @@ def encrypt_data(value, sink_node):
         raise TypeError("Unsupported data type. Only float and string are allowed.")
 
     binary_data = type_flag + binary_data  # Prefix with type indicator
-
     keyw = secrets.token_bytes(32)  # AES-256 key
     iv = secrets.token_bytes(12)    # 12-byte IV for GCM
 
@@ -36,7 +35,6 @@ def encrypt_data(value, sink_node):
             label=None
         )
     )
-
     key_len_prefix = struct.pack("I", len(encrypted_key))
     combined = key_len_prefix + encrypted_key + encrypted_payload
     return base64.b64encode(combined).decode('utf-8')

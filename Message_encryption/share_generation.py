@@ -27,14 +27,11 @@ def generate_shares(ciphertext: bytes, t: int, routing_table: dict, node_id: str
         pad_block(ciphertext[i * block_size: (i + 1) * block_size], block_size)
         for i in range(t)
     ]
-
     B = generate_invertible_cyclic_matrix(t)
     bt_plus_1 = np.bitwise_xor.reduce(B, axis=0)
     share_packet_t_plus_1=ciphertext
     B_full = np.vstack((B, bt_plus_1))
-
     paths = random.sample(routing_table[node_id], t + 1)
-
     timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
     shares = []
     for i, row in enumerate(B_full):
@@ -57,12 +54,8 @@ def generate_shares(ciphertext: bytes, t: int, routing_table: dict, node_id: str
             "block_size": block_size,
             "total_len": total_len
         }
-        shares.append(share_packet)
-    
-    
+        shares.append(share_packet)   
     for share in shares:
         print(f"Share {share['index']}: {share['share']}\n  Hash: {share['hash']}\n  Path: {share['path']}\n")
     shares.append(share_packet_t_plus_1)
-
-
     return shares
