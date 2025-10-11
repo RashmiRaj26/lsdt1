@@ -10,8 +10,28 @@ from Message_encryption.share_generation import generate_shares
 from Message_Transmission.msgtrans import simulate_message_transmission
 from Message_Transmission.simulate import simulates
 import random
+# Optional: allow marking a node malicious for testing
+from Message_Transmission.malicious_node_management import mark_node_as_malicious
+from Message_Transmission import msgtrans
+
+# Toggle verbose diagnostics in the message transmission module (set True to see per-query prints)
+VERBOSE_MSGTRANS = False
+msgtrans.DEBUG = VERBOSE_MSGTRANS
 
 G, sensor_nodes, sink_node, positions = initialize_network(num_nodes=30)
+
+# --- Malicious node configuration (toggle for tests) ---
+# Set to True to mark a node malicious before sending shares
+ENABLE_MALICIOUS_TEST = True
+MALICIOUS_NODE_ID = 'node5'  # change as needed
+MALICIOUS_BEHAVIOR = 'no_response'  # 'no_response' or 'delay'
+MALICIOUS_DELAY = 8.0  # seconds, only used for 'delay'
+
+if ENABLE_MALICIOUS_TEST:
+    if MALICIOUS_NODE_ID in sensor_nodes:
+        mark_node_as_malicious(sensor_nodes[MALICIOUS_NODE_ID], behavior=MALICIOUS_BEHAVIOR, delay=MALICIOUS_DELAY)
+    else:
+        print(f"Warning: {MALICIOUS_NODE_ID} not found in sensor_nodes; cannot mark malicious")
 
 message = input("Enter message to encrypt and send to sink node: ")
 

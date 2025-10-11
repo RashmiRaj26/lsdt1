@@ -1,6 +1,7 @@
 import time
 import hashlib
 from collections import defaultdict
+import threading
 
 import math
 
@@ -24,7 +25,32 @@ def send_message(u, v, message):
         except Exception:
             print(f"Warning: couldn't update energy for Node {u.node_id}")
 
-    v.last_received_message = message.copy()
+    # Deliver message to receiver unless the receiver is malicious and configured
+    # to not respond within the TD window.
+    def _deliver():
+        v.last_received_message = message.copy()
+
+    # If the receiver is marked malicious, it can either not respond at all or
+    # delay the response beyond the TD window.
+    if getattr(v, 'malicious', False):
+        behavior = getattr(v, 'malicious_behavior', 'no_response')
+        if behavior == 'no_response':
+            # do not set last_received_message -> forward_and_monitor will time out
+            print(f"Node {v.node_id} is malicious (no_response): not delivering message to it")
+        elif behavior == 'delay':
+            delay = getattr(v, 'malicious_response_delay', None)
+            if delay is None:
+                # default: delay longer than typical TD so it times out
+                delay = 10.0
+            print(f"Node {v.node_id} is malicious (delay): will deliver after {delay}s")
+            t = threading.Thread(target=lambda: (time.sleep(delay), _deliver()), daemon=True)
+            t.start()
+        else:
+            # unknown behavior - deliver normally but warn
+            print(f"Warning: unknown malicious behavior '{behavior}' for Node {v.node_id}. Delivering normally.")
+            _deliver()
+    else:
+        _deliver()
 
 suspicious_nodes = set()
 node_reputation = defaultdict(lambda: {'gamma': 1, 'k': 0, 'pv': 1.0})
@@ -69,7 +95,14 @@ def mark_suspicious(u, v, message, sink, all_nodes):
         "Lov": v.location,
         "TS": message['TS']
     }
+    # forward the anomaly report to the sink for logging/routing
     forward_report_to_sink(u, anomaly_report, v, all_nodes, sink)
+    # update reputation immediately based on this single report and broadcast
+    try:
+        update_reputation(sink, [anomaly_report])
+        broadcast_reputation_updates()
+    except Exception as e:
+        print(f"Warning: failed to update/broadcast reputations: {e}")
 
 
 def forward_report_to_sink(start_node, report, avoid_node, all_nodes, sink):
@@ -103,3 +136,19 @@ def broadcast_reputation_updates():
     for node_id, rep in node_reputation.items():
         print(f"Node {node_id}: Reputation pv = {rep['pv']:.4f}")
     print("completed!")
+
+
+def mark_node_as_malicious(node, behavior='no_response', delay=None):
+    """
+    Mark a node as malicious.
+
+    Parameters:
+    - node: SensorNode instance to mark
+    - behavior: 'no_response' (doesn't set last_received_message) or 'delay' (delivers after `delay` seconds)
+    - delay: seconds to wait before delivering the message (only for 'delay')
+    """
+    setattr(node, 'malicious', True)
+    setattr(node, 'malicious_behavior', behavior)
+    if delay is not None:
+        setattr(node, 'malicious_response_delay', float(delay))
+    print(f"Node {node.node_id} marked malicious: behavior={behavior}, delay={delay}")

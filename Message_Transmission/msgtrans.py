@@ -4,10 +4,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import random
 import math
 import time
+import csv
+import string
 from Initialization.network import initialize_network
 from Initialization.nodeStructure import SensorNode, SinkNode
 
-from Message_Transmission.malicious_node_management import forward_and_monitor 
+from Message_Transmission.malicious_node_management import forward_and_monitor, suspicious_nodes, node_reputation
+
 
 def euclidean_distance(loc1, loc2):
     return math.sqrt((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2)
@@ -66,6 +69,10 @@ def step2_neighbors_respond(queries, sink_location, all_nodes):
     responses = {}
     for v_id, q in queries.items():
         v = all_nodes[v_id]
+        # skip non-sensor nodes (e.g., sink) which don't have initial_energy
+        if not hasattr(v, 'initial_energy'):
+            print(f"Skipping node {v_id} in responses (no initial_energy)")
+            continue
         beta_j = random.randint(1, 100)
         g_beta_j = beta_j
         g_alpha_beta_j = q['g_alpha_j'] * beta_j
@@ -122,7 +129,7 @@ def step5_forward_message(message, selected_node_id):
     print(f"Message forwarded to Node {selected_node_id}. Path so far: {new_message['path*']}")
     return new_message
 
-def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None):
+def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None, message_override=None, csv_writer=None, run_id=0):
     print("\n--- Simulation Start ---")
 
     # allow caller to pass an existing network so node energy persists across multiple shares
@@ -135,12 +142,22 @@ def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None):
     if getattr(sink, 'node_id', None) not in all_nodes:
         all_nodes[sink.node_id] = sink
 
-    message = {
-        'id': 'm1',
-        'TS': 123456,
-        'path': [],
-        'path*': [source_node.node_id]
-    }
+    # prepare message (allow caller override)
+    if message_override is None:
+        message = {
+            'id': 'm1',
+            'TS': int(time.time()),
+            'path': [],
+            'path*': [source_node.node_id]
+        }
+    else:
+        message = message_override.copy()
+        if 'TS' not in message:
+            message['TS'] = int(time.time())
+        if 'path' not in message:
+            message['path'] = []
+        if 'path*' not in message or not message['path*']:
+            message['path*'] = [source_node.node_id]
 
     current_node = source_node
     hop = 0
@@ -152,6 +169,36 @@ def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None):
         lower_bound = 0
     max_hops = max(lower_bound, len(sensor_nodes))
 
+    # helper to write CSV snapshots for sensor nodes at a hop (exclude sink)
+    def write_snapshots(hop_index):
+        if csv_writer is None:
+            return
+        for node_id, node in sensor_nodes.items():
+            energy = getattr(node, 'initial_energy', '')
+            dist_to_sink = euclidean_distance(node.location, sink.location)
+            reputation = getattr(node, 'reputation', '')
+            anomaly_count = getattr(node, 'anomaly_count', '')
+            suspicious_count = getattr(node, 'suspicious_count', '')
+            neighbor_count = 0
+            for other in sensor_nodes.values():
+                if other.node_id != node_id and euclidean_distance(node.location, other.location) <= getattr(node, 'communication_radius', 0):
+                    neighbor_count += 1
+            is_malicious = getattr(node, 'is_malicious', False)
+
+            csv_writer.writerow({
+                'run_id': run_id,
+                'transmission_ts': message.get('TS', ''),
+                'hop': hop_index,
+                'node_id': node_id,
+                'energy': energy,
+                'dist_to_sink': dist_to_sink,
+                'reputation': reputation,
+                'anomaly_count': anomaly_count,
+                'suspicious_count': suspicious_count,
+                'neighbor_count': neighbor_count,
+                'is_malicious': is_malicious
+            })
+
     while hop < max_hops:
         print(f"\n--- Hop {hop + 1} ---")
         print(f"Current Node: {current_node.node_id}")
@@ -159,17 +206,33 @@ def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None):
         dist_to_sink = euclidean_distance(current_node.location, sink.location)
         print(f"Distance to sink: {dist_to_sink}, Comm range: {current_node.communication_radius}")
 
-        if dist_to_sink <= current_node.communication_radius:
-            print(f"Sink is within range of Node {current_node.node_id}. Forwarding message to sink.")
-            message['path*'].append('sink')
+        # If the sink is within mutual communication range, forward directly to sink
+        # and finish the transmission.
+        try:
+            sink_radius = getattr(sink, 'communication_radius', current_node.communication_radius)
+        except Exception:
+            sink_radius = current_node.communication_radius
+        if dist_to_sink <= min(current_node.communication_radius, sink_radius):
+            print("Sink is within range of Node {}. Forwarding message to sink.".format(current_node.node_id))
+            # perform the send (and monitoring) to sink using malicious manager
+            forward_and_monitor(current_node, sink, message, TD=1.0, all_nodes=all_nodes, sink=sink)
+            message['path*'].append(sink.node_id)
             print("Message reached the Sink Node!")
-            break 
+            # finalize and break
+            hop += 1
+            break
+
+        # write snapshot for this hop (before any forwarding)
+        write_snapshots(hop)
 
         
-        # neighbor is valid only if both nodes are within each other's communication radii
+        # neighbor is valid only if both nodes are sensor nodes and within each other's communication radii
         neighbors = []
         for node_id, node in all_nodes.items():
             if node_id == current_node.node_id or node_id in message['path*']:
+                continue
+            # skip sink / non-sensor nodes
+            if not hasattr(node, 'initial_energy'):
                 continue
             dist = euclidean_distance(current_node.location, node.location)
             if dist <= min(current_node.communication_radius, node.communication_radius):
@@ -187,10 +250,10 @@ def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None):
                     exclusions.append((node_id, dist))
                 else:
                     candidates.append((node_id, dist))
-        if candidates:
-            print(f"Candidates within mutual range (not in path*): {[ (n,d) for n,d in candidates ]}")
-        if exclusions:
-            print(f"Reachable but excluded (in path*): {[ (n,d) for n,d in exclusions ]}")
+        # if candidates:
+        #     print(f"Candidates within mutual range (not in path*): {[ (n,d) for n,d in candidates ]}")
+        # if exclusions:
+        #     print(f"Reachable but excluded (in path*): {[ (n,d) for n,d in exclusions ]}")
 
         if not neighbors:
             print("No neighbors within range. Diagnostic info:")
@@ -229,6 +292,41 @@ def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None):
         'sink': sink
     }
 
+
+
+# def run_multiple_transmissions(n=50, csv_path=None, seed=None):
+#     """Run n transmissions with random messages and log node metrics to CSV.
+
+#     Each message is a random string of length between 1 and 10.
+#     """
+#     if seed is not None:
+#         random.seed(seed)
+
+#     if csv_path is None:
+#         csv_path = os.path.join(os.path.dirname(__file__), 'transmission_log.csv')
+
+#     fieldnames = ['run_id', 'transmission_ts', 'hop', 'node_id', 'energy', 'dist_to_sink',
+#                   'reputation', 'anomaly_count', 'suspicious_count', 'neighbor_count', 'is_malicious']
+
+#     # open CSV and write header
+#     with open(csv_path, mode='w', newline='') as csvfile:
+#         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+#         writer.writeheader()
+
+#         for i in range(1, n + 1):
+#             length = random.randint(1, 10)
+#             msg_str = ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+#             message = {
+#                 'id': f'm{i}',
+#                 'TS': int(time.time()),
+#                 'payload': msg_str,
+#                 'path': [],
+#                 'path*': []
+#             }
+#             print(f"\n=== Running transmission {i}/{n} with message '{msg_str}' ===")
+#             simulate_message_transmission(message_override=message, csv_writer=writer, run_id=i)
+
+#     print(f"Logging complete. CSV saved to: {csv_path}")
 # # ------------------ Main Simulation Loop ------------------
 # if __name__ == "__main__":
 #     for i in range(3):

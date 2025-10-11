@@ -8,8 +8,13 @@ from cryptography.hazmat.primitives import hashes
 from Initialization.nodeStructure import SensorNode, SinkNode
 from Initialization.routing_path import initialize_routing
 
-def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmission_range=30, seed=42):
-    np.random.seed(seed)
+def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmission_range=30, seed=None):
+    # If seed is provided (int), use it to make runs reproducible.
+    # If seed is None (default) do not reseed the RNG so each run differs.
+    if seed is not None:
+        np.random.seed(seed)
+        # also seed the stdlib random module used elsewhere for primes, etc.
+        random.seed(seed)
     predefined_positions = [
         (10, 20), (20, 35), (76, 75), (40, 30), (50, 55),
         (25, 34), (70, 60), (80, 20), (90, 40), (60, 42),
@@ -87,6 +92,17 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
         # (edges use transmission_range). If desired we can add small jitter.
         communication_radius = transmission_range
         sensor_node = SensorNode(node_id, pos, initial_energy, communication_radius)
+        # If this node is at location (65, 70) mark it malicious by default
+        # (user-requested). Set both 'malicious' and 'is_malicious' to keep
+        # compatibility with different modules.
+        if pos == (48, 49):
+            sensor_node.malicious = True
+            sensor_node.is_malicious = True
+            # default malicious behavior: do not respond within TD
+            sensor_node.malicious_behavior = 'no_response'
+            # no scheduled delayed response by default
+            sensor_node.malicious_response_delay = None
+            print(f"Marked node {node_id} at {pos} as malicious (behavior=no_response)")
         sensor_nodes[node_id] = sensor_node
         G.add_node(node_id, pos=pos, energy=initial_energy, radius=communication_radius)
     for i in range(num_nodes):
