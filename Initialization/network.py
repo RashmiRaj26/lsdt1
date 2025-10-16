@@ -118,6 +118,11 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
     sink_node.communication_radius = transmission_range
     G.add_node(sink_node.node_id, pos=sink_node.location)
     positions[sink_node.node_id] = sink_node.location
+    for node_id, node in sensor_nodes.items():
+        dist = np.linalg.norm(np.array(node.location) - np.array(sink_location))
+        if dist <= transmission_range:  # within communication range
+            G.add_edge('sink', node_id)
+
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
@@ -164,6 +169,6 @@ def initialize_network(num_nodes=20, area_size=100, E0=100, theta=0.5, transmiss
         "hop": 0,
         "R": set()
     }
-    initialize_routing(sink_node, sensor_nodes, G)
 
-    return G, sensor_nodes, sink_node, positions
+    routing_table = initialize_routing(sink_node, sensor_nodes, G)
+    return G, sensor_nodes, sink_node, positions, routing_table

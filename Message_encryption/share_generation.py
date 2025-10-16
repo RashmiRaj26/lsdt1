@@ -31,7 +31,18 @@ def generate_shares(ciphertext: bytes, t: int, routing_table: dict, node_id: str
     bt_plus_1 = np.bitwise_xor.reduce(B, axis=0)
     share_packet_t_plus_1=ciphertext
     B_full = np.vstack((B, bt_plus_1))
-    paths = random.sample(routing_table[node_id], t + 1)
+    # Choose t+1 distinct paths if available; otherwise allow sampling with replacement
+    candidates = list(routing_table.get(node_id, []))
+    needed = t + 1
+    if not candidates:
+        raise ValueError(f"No routing candidates available for node_id={node_id}")
+    if len(candidates) >= needed:
+        paths = random.sample(candidates, needed)
+    else:
+        # Not enough unique candidates: sample and allow duplicates to reach required count
+        paths = candidates.copy()
+        while len(paths) < needed:
+            paths.append(random.choice(candidates))
     timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
     shares = []
     for i, row in enumerate(B_full):
