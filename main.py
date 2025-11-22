@@ -4,8 +4,9 @@ from Message_encryption.encryption import encrypt_data, decrypt_data
 import matplotlib.pyplot as plt
 import networkx as nx
 import base64
-from Original_data_recovery.original_data import recover_original_data
-from Message_encryption.share_generation import message_generation_and_sharing
+# from Original_data_recovery.original_data import recover_original_data
+from Message_encryption.share_generation import generate_and_share
+from Message_encryption.share_generation import reconstruct_and_decrypt
 from Message_Transmission.msgtrans import simulate_message_transmission
 from Message_Transmission.simulate import simulates
 import random
@@ -34,16 +35,6 @@ print("Sink neighbors:", list(G.neighbors(sink_node.node_id)))
 
 # --- Malicious node configuration (toggle for tests) ---
 # Set to True to mark a node malicious before sending shares
-ENABLE_MALICIOUS_TEST = True
-MALICIOUS_NODE_ID = 'node5'  # change as needed
-MALICIOUS_BEHAVIOR = 'no_response'  # 'no_response' or 'delay'
-MALICIOUS_DELAY = 8.0  # seconds, only used for 'delay'
-
-if ENABLE_MALICIOUS_TEST:
-    if MALICIOUS_NODE_ID in sensor_nodes:
-        mark_node_as_malicious(sensor_nodes[MALICIOUS_NODE_ID], behavior=MALICIOUS_BEHAVIOR, delay=MALICIOUS_DELAY)
-    else:
-        print(f"Warning: {MALICIOUS_NODE_ID} not found in sensor_nodes; cannot mark malicious")
 
 # message = input("Enter message to encrypt and send to sink node: ")
 
@@ -106,8 +97,46 @@ if len(routing_for_shares[source_id]) < DESIRED_TOTAL_SHARES:
 
 # Set t so generate_shares will produce DESIRED_TOTAL_SHARES packets
 t = DESIRED_TOTAL_SHARES - 1
-shares = message_generation_and_sharing(t)
-print(" ")
+# shares_key, shares_msg, B_key, B_msg, enc_key_len, ecc_priv, ecc_pub, iv = generate_and_share(message=12345, t=3)
+# # print(shares)
+# indices = [0, 2, 3]
+
+# recv_key = [shares_key[i] for i in indices]
+# recv_msg = [shares_msg[i] for i in indices]
+# print(" ")
+# for i in range(DESIRED_TOTAL_SHARES):
+#     print(f"\n================== Transmitting share {i + 1} ==================")
+#     # pass the initialized network so energy changes persist across shares
+#     result = simulate_message_transmission(sensor_nodes=sensor_nodes, sink=sink_node, positions=positions)
+#     print("\n--- Simulation Complete ---")
+#     print("Message transmission path:", result['message']['path*'])
+    
+#     print("Total hops:", result['message']['total_hops'])
+
+#     color = (random.random(), random.random(), random.random())  # RGB
+#     simulates(result['message']['path*'], result['sink'], result['all_nodes'], delay=1.5, color=color, share_number=i+1)
+
+# decrypted = reconstruct_and_decrypt(
+#     indices,
+#     recv_key,
+#     recv_msg,
+#     B_key,
+#     B_msg,
+#     enc_key_len,
+#     ecc_priv,
+#     ecc_pub,
+#     iv
+# )
+# print("original data is: ",decrypted)
+
+data = generate_and_share(message=12345, t=4)
+
+# Example: sink receives any 3 shares
+indices = [0, 2, 3]
+
+recv_key = [data["shares_key"][i] for i in indices]
+recv_msg = [data["shares_msg"][i] for i in indices]
+
 for i in range(DESIRED_TOTAL_SHARES):
     print(f"\n================== Transmitting share {i + 1} ==================")
     # pass the initialized network so energy changes persist across shares
@@ -120,5 +149,17 @@ for i in range(DESIRED_TOTAL_SHARES):
     color = (random.random(), random.random(), random.random())  # RGB
     simulates(result['message']['path*'], result['sink'], result['all_nodes'], delay=1.5, color=color, share_number=i+1)
 
-decrypted = recover_original_data(shares, sink_node, source_id, routing_for_shares, sink_node.private_key)
-print("original data is: ",decrypted)
+# ========== PART 2 ==========
+original = reconstruct_and_decrypt(
+    indices,
+    recv_key,
+    recv_msg,
+    data["B_key"],
+    data["B_msg"],
+    data["enc_key_len"],
+    data["ecc_priv"],
+    data["ecc_pub"],
+    data["iv"]
+)
+
+print("Recovered:", original)
