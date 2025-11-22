@@ -7,7 +7,7 @@ def simulates(path, sink, all_nodes, delay=1.0, color='g', share_number=None):
     ax.set_xlim(0, 120)
     ax.set_ylim(0, 120)
 
-    # Plot all nodes
+
     for node_id, node in all_nodes.items():
         ax.plot(node.location[0], node.location[1], 'bo')
         ax.text(node.location[0] + 1, node.location[1] + 1, node_id, fontsize=9)

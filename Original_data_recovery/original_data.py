@@ -40,7 +40,7 @@ def recover_original_data(shares, sink_node, source_node_id, routing_table, priv
     if len(shares) > (t+1):
         temp = shares[-1]
         shares.pop()
-    shares_sorted = sorted(shares[:t], key=lambda x: x["index"])
+    shares_sorted = sorted(shares[:t], key=lambda x: x[0])
     S = np.array([list(x["share"]) for x in shares_sorted], dtype=np.uint8)
 
     B_T_inv = gf2_matrix_inverse(B_T)

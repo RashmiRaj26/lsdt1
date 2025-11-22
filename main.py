@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import base64
 from Original_data_recovery.original_data import recover_original_data
-from Message_encryption.share_generation import generate_shares
+from Message_encryption.share_generation import message_generation_and_sharing
 from Message_Transmission.msgtrans import simulate_message_transmission
 from Message_Transmission.simulate import simulates
 import random
@@ -45,9 +45,9 @@ if ENABLE_MALICIOUS_TEST:
     else:
         print(f"Warning: {MALICIOUS_NODE_ID} not found in sensor_nodes; cannot mark malicious")
 
-message = input("Enter message to encrypt and send to sink node: ")
+# message = input("Enter message to encrypt and send to sink node: ")
 
-encrypted = encrypt_data(message, sink_node)
+# encrypted = encrypt_data(message, sink_node)
 # Determine a source node (first sensor node) and build routing candidates for shares
 source_id = list(sensor_nodes.keys())[0]
 
@@ -106,7 +106,7 @@ if len(routing_for_shares[source_id]) < DESIRED_TOTAL_SHARES:
 
 # Set t so generate_shares will produce DESIRED_TOTAL_SHARES packets
 t = DESIRED_TOTAL_SHARES - 1
-shares = generate_shares(encrypted, t, routing_for_shares, source_id)
+shares = message_generation_and_sharing(t)
 print(" ")
 for i in range(DESIRED_TOTAL_SHARES):
     print(f"\n================== Transmitting share {i + 1} ==================")
@@ -114,6 +114,7 @@ for i in range(DESIRED_TOTAL_SHARES):
     result = simulate_message_transmission(sensor_nodes=sensor_nodes, sink=sink_node, positions=positions)
     print("\n--- Simulation Complete ---")
     print("Message transmission path:", result['message']['path*'])
+    
     print("Total hops:", result['message']['total_hops'])
 
     color = (random.random(), random.random(), random.random())  # RGB

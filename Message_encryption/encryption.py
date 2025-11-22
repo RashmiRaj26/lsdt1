@@ -7,7 +7,6 @@ import base64
 import secrets
 
 def encrypt_data(value, sink_node):
-    # Determine type and serialize accordingly
     if isinstance(value, float):
         type_flag = b'\x01'
         binary_data = struct.pack("d", value)
@@ -17,9 +16,9 @@ def encrypt_data(value, sink_node):
     else:
         raise TypeError("Unsupported data type. Only float and string are allowed.")
 
-    binary_data = type_flag + binary_data  # Prefix with type indicator
-    keyw = secrets.token_bytes(32)  # AES-256 key
-    iv = secrets.token_bytes(12)    # 12-byte IV for GCM
+    binary_data = type_flag + binary_data 
+    keyw = secrets.token_bytes(32) 
+    iv = secrets.token_bytes(12)
 
     cipher = Cipher(algorithms.AES(keyw), modes.GCM(iv), backend=default_backend())
     encryptor = cipher.encryptor()
