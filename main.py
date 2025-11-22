@@ -1,6 +1,6 @@
 from Initialization.network import initialize_network
 from Initialization.routing_path import initialize_routing
-from Message_encryption.encryption import encrypt_data, decrypt_data
+# from Message_encryption.encryption import encrypt_data, decrypt_data
 import matplotlib.pyplot as plt
 import networkx as nx
 import base64
@@ -97,7 +97,7 @@ if len(routing_for_shares[source_id]) < DESIRED_TOTAL_SHARES:
 
 # Set t so generate_shares will produce DESIRED_TOTAL_SHARES packets
 t = DESIRED_TOTAL_SHARES - 1
-# shares_key, shares_msg, B_key, B_msg, enc_key_len, ecc_priv, ecc_pub, iv = generate_and_share(message=12345, t=3)
+data = generate_and_share(message=12345, t=t)
 # # print(shares)
 # indices = [0, 2, 3]
 
@@ -129,9 +129,45 @@ t = DESIRED_TOTAL_SHARES - 1
 # )
 # print("original data is: ",decrypted)
 
-data = generate_and_share(message=12345, t=4)
+# data = generate_and_share(message=12345, t=4)
 
-# Example: sink receives any 3 shares
+# # Example: sink receives any 3 shares
+# indices = [0, 2, 3]
+
+# recv_key = [data["shares_key"][i] for i in indices]
+# recv_msg = [data["shares_msg"][i] for i in indices]
+
+# for i in range(DESIRED_TOTAL_SHARES):
+#     print(f"\n================== Transmitting share {i + 1} ==================")
+#     # pass the initialized network so energy changes persist across shares
+#     result = simulate_message_transmission(sensor_nodes=sensor_nodes, sink=sink_node, positions=positions)
+#     print("\n--- Simulation Complete ---")
+#     print("Message transmission path:", result['message']['path*'])
+    
+#     print("Total hops:", result['message']['total_hops'])
+
+#     color = (random.random(), random.random(), random.random())  # RGB
+#     simulates(result['message']['path*'], result['sink'], result['all_nodes'], delay=1.5, color=color, share_number=i+1)
+
+# ========== PART 2 ==========
+# original = reconstruct_and_decrypt(
+#     indices,
+#     recv_key,
+#     recv_msg,
+#     data["B_key"],
+#     data["B_msg"],
+#     data["enc_key_len"],
+#     data["ct_len"],
+#     data["ecc_priv"],
+#     data["ecc_pub"],
+#     data["iv"]
+# )
+
+# print("Recovered:", original)
+
+data = generate_and_share(message=12345, t=3)
+
+    # Example: sink receives any 3 shares (for t=3, pick any 3 of the 4 available shares)
 indices = [0, 2, 3]
 
 recv_key = [data["shares_key"][i] for i in indices]
@@ -157,6 +193,7 @@ original = reconstruct_and_decrypt(
     data["B_key"],
     data["B_msg"],
     data["enc_key_len"],
+    data["ct_len"],
     data["ecc_priv"],
     data["ecc_pub"],
     data["iv"]
