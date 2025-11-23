@@ -8,7 +8,7 @@ import base64
 from Message_encryption.share_generation import generate_and_share
 from Message_encryption.share_generation import reconstruct_and_decrypt
 from Message_Transmission.msgtrans import simulate_message_transmission
-from Message_Transmission.simulate import simulates
+# from Message_Transmission.simulate import simulates
 import random
 # Optional: allow marking a node malicious for testing
 from Message_Transmission.malicious_node_management import mark_node_as_malicious
@@ -183,7 +183,7 @@ for i in range(DESIRED_TOTAL_SHARES):
     print("Total hops:", result['message']['total_hops'])
 
     color = (random.random(), random.random(), random.random())  # RGB
-    simulates(result['message']['path*'], result['sink'], result['all_nodes'], delay=1.5, color=color, share_number=i+1)
+    # simulates(result['message']['path*'], result['sink'], result['all_nodes'], delay=1.5, color=color, share_number=i+1)
 
 # ========== PART 2 ==========
 original = reconstruct_and_decrypt(

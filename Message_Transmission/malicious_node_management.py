@@ -161,9 +161,26 @@ def mark_suspicious(u, v, message, sink, all_nodes):
     }
     # forward the anomaly report to the sink for logging/routing
     forward_report_to_sink(u, anomaly_report, v, all_nodes, sink)
+    # update node-level counters
+    try:
+        v.suspicious_count = getattr(v, 'suspicious_count', 0) + 1
+    except Exception:
+        pass
+    try:
+        v.anomaly_count = getattr(v, 'anomaly_count', 0) + 1
+    except Exception:
+        pass
+
     # update reputation immediately based on this single report and broadcast
     try:
         update_reputation(sink, [anomaly_report])
+        # reflect updated reputation on the node object if entry exists
+        try:
+            rep = node_reputation.get(v.node_id, None)
+            if rep is not None:
+                setattr(v, 'reputation', rep.get('pv', getattr(v, 'reputation', 1.0)))
+        except Exception:
+            pass
         broadcast_reputation_updates()
     except Exception as e:
         print(f"Warning: failed to update/broadcast reputations: {e}")
@@ -193,6 +210,8 @@ def update_reputation(sink, reports):
         gamma = node_reputation[node_id]['gamma']
         k = node_reputation[node_id]['k']
         node_reputation[node_id]['pv'] = gamma ** (-k)
+    # Note: updating node_reputation dict only. Individual node objects are updated
+    # by callers (e.g., mark_suspicious) if they have access to the node object.
 
 
 def broadcast_reputation_updates():
@@ -212,7 +231,18 @@ def mark_node_as_malicious(node, behavior='no_response', delay=None):
     - delay: seconds to wait before delivering the message (only for 'delay')
     """
     setattr(node, 'malicious', True)
+    # keep backward-compatible flag used elsewhere
+    setattr(node, 'is_malicious', True)
     setattr(node, 'malicious_behavior', behavior)
     if delay is not None:
         setattr(node, 'malicious_response_delay', float(delay))
+    # increment anomaly/suspicious counters when explicitly marked
+    try:
+        node.anomaly_count = getattr(node, 'anomaly_count', 0) + 1
+    except Exception:
+        pass
+    try:
+        node.suspicious_count = getattr(node, 'suspicious_count', 0) + 1
+    except Exception:
+        pass
     print(f"Node {node.node_id} marked malicious: behavior={behavior}, delay={delay}")

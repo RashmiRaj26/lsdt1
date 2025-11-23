@@ -129,7 +129,7 @@ def step5_forward_message(message, selected_node_id):
     print(f"Message forwarded to Node {selected_node_id}. Path so far: {new_message['path*']}")
     return new_message
 
-def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None, message_override=None, csv_writer=None, run_id=0):
+def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None, message_override=None, csv_writer=None, run_id=0, csv_path=None):
     print("\n--- Simulation Start ---")
 
     # allow caller to pass an existing network so node energy persists across multiple shares
@@ -170,33 +170,42 @@ def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None, 
     max_hops = max(lower_bound, len(sensor_nodes))
 
     # helper to write CSV snapshots for sensor nodes at a hop (exclude sink)
-    def write_snapshots(hop_index):
-        if csv_writer is None:
+    # Writes rows with the fields requested by the user:
+    # node_id,energy,dist_to_sink_node,reputation,anomaly_count,suspicious_count,neighbour_count
+    def write_snapshots(hop_index, writer=None):
+        if writer is None:
             return
         for node_id, node in sensor_nodes.items():
             energy = getattr(node, 'initial_energy', '')
             dist_to_sink = euclidean_distance(node.location, sink.location)
             reputation = getattr(node, 'reputation', '')
-            anomaly_count = getattr(node, 'anomaly_count', '')
-            suspicious_count = getattr(node, 'suspicious_count', '')
+            suspicious_count = getattr(node, 'suspicious_count', 0)
+            # compute neighbor count
             neighbor_count = 0
             for other in sensor_nodes.values():
                 if other.node_id != node_id and euclidean_distance(node.location, other.location) <= getattr(node, 'communication_radius', 0):
                     neighbor_count += 1
-            is_malicious = getattr(node, 'is_malicious', False)
 
-            csv_writer.writerow({
-                'run_id': run_id,
-                'transmission_ts': message.get('TS', ''),
-                'hop': hop_index,
+            # compute anomaly_count from frwd_data_cnt if present (sum of attempts), else fallback to anomaly_count attribute
+            anomaly_count = 0
+            frwd = getattr(node, 'frwd_data_cnt', None)
+            if frwd:
+                try:
+                    for v in frwd.values():
+                        anomaly_count += int(v)
+                except Exception:
+                    anomaly_count = getattr(node, 'anomaly_count', 0)
+            else:
+                anomaly_count = getattr(node, 'anomaly_count', 0)
+
+            writer.writerow({
                 'node_id': node_id,
                 'energy': energy,
-                'dist_to_sink': dist_to_sink,
+                'dist_to_sink_node': dist_to_sink,
                 'reputation': reputation,
                 'anomaly_count': anomaly_count,
                 'suspicious_count': suspicious_count,
-                'neighbor_count': neighbor_count,
-                'is_malicious': is_malicious
+                'neighbour_count': neighbor_count
             })
 
     while hop < max_hops:
@@ -227,7 +236,49 @@ def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None, 
             break
 
         # write snapshot for this hop (before any forwarding)
-        write_snapshots(hop)
+        # Prepare CSV writer if csv_path provided
+        csv_file = None
+        csv_file_writer = None
+        # if caller didn't pass a writer or path, use a default file in Message_Transmission
+        if csv_writer is None and csv_path is None:
+            csv_path = os.path.join(os.path.dirname(__file__), 'node_metrics.csv')
+
+        if csv_writer is not None:
+            csv_file_writer = csv_writer
+        elif csv_path is not None:
+            # open file in append mode and ensure header exists
+            fieldnames = ['node_id', 'energy', 'dist_to_sink_node', 'reputation', 'anomaly_count', 'suspicious_count', 'neighbour_count']
+            need_header = False
+            try:
+                # ensure directory exists
+                os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+                exists = os.path.exists(csv_path)
+                csv_file = open(csv_path, 'a+', newline='')
+                csv_file.seek(0)
+                first = csv_file.readline()
+                if not first:
+                    need_header = True
+                else:
+                    # crude check: header contains 'node_id'
+                    if 'node_id' not in first:
+                        need_header = True
+                csv_file.seek(0, os.SEEK_END)
+                writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+                if need_header:
+                    writer.writeheader()
+                csv_file_writer = writer
+            except Exception as e:
+                print(f"Warning: couldn't open csv_path {csv_path} for writing: {e}")
+                csv_file_writer = None
+
+        write_snapshots(hop, writer=csv_file_writer)
+
+        # close file handle if we opened it here
+        if csv_file is not None:
+            try:
+                csv_file.close()
+            except Exception:
+                pass
 
         
         # neighbor is valid only if both nodes are sensor nodes and within each other's communication radii
