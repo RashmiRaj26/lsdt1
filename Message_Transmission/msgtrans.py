@@ -215,8 +215,12 @@ def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None, 
         if dist_to_sink <= min(current_node.communication_radius, sink_radius):
             print("Sink is within range of Node {}. Forwarding message to sink.".format(current_node.node_id))
             # perform the send (and monitoring) to sink using malicious manager
-            forward_and_monitor(current_node, sink, message, TD=1.0, all_nodes=all_nodes, sink=sink)
-            message['path*'].append(sink.node_id)
+            actual = forward_and_monitor(current_node, sink, message, TD=1.0, all_nodes=all_nodes, sink=sink)
+            if actual is None:
+                print("Forward to sink failed. Stopping transmission.")
+                break
+            # append actual recipient (should be sink)
+            message['path*'].append(actual)
             print("Message reached the Sink Node!")
             # finalize and break
             hop += 1
@@ -275,10 +279,13 @@ def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None, 
 
         v = all_nodes[selected_id]
         # use forward_and_monitor to perform the actual send and monitoring (it calls send_message)
-        forward_and_monitor(current_node, v, message, TD=1.0, all_nodes=all_nodes, sink=sink)
+        actual = forward_and_monitor(current_node, v, message, TD=1.0, all_nodes=all_nodes, sink=sink)
+        if actual is None:
+            print("Forwarding failed for current hop. Stopping transmission.")
+            break
 
-        message = step5_forward_message(message, selected_id)
-        current_node = all_nodes[selected_id]
+        message = step5_forward_message(message, actual)
+        current_node = all_nodes[actual]
         hop += 1
 
     message['final_hop'] = current_node.node_id
@@ -286,10 +293,45 @@ def simulate_message_transmission(sensor_nodes=None, sink=None, positions=None, 
     if hop >= max_hops:
         print(f"Stopped because max_hops={max_hops} reached. Consider increasing max_hops or adjusting routing.")
     
+    # After transmission, print per-sender frwd_data_cnt summary (if present)
+    print("\n--- frwd_data_cnt summary (per sender) ---")
+    frwd_summary = {}
+    for node_id, node in sensor_nodes.items():
+        cnt = getattr(node, 'frwd_data_cnt', None)
+        if cnt is None:
+            print(f"Node {node_id} frwd_data_cnt: {{}}")
+            frwd_summary[node_id] = {}
+        else:
+            try:
+                d = dict(cnt)
+            except Exception:
+                try:
+                    d = {k: cnt[k] for k in getattr(cnt, 'keys', lambda: [])()}
+                except Exception:
+                    d = {}
+            print(f"Node {node_id} frwd_data_cnt: {d}")
+            frwd_summary[node_id] = d
+
+    # compute total count across all senders
+    total_frwd = 0
+    for d in frwd_summary.values():
+        try:
+            for v in d.values():
+                try:
+                    total_frwd += int(v)
+                except Exception:
+                    continue
+        except Exception:
+            continue
+
+    print(f"\nTotal frwd_data_cnt across all senders: {total_frwd}")
+
     return {
         'message': message,
         'all_nodes': all_nodes,
-        'sink': sink
+        'sink': sink,
+        'frwd_data_cnt': frwd_summary,
+        'total_frwd_data_cnt': total_frwd
     }
 
 

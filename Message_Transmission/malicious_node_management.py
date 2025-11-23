@@ -62,29 +62,93 @@ def compute_hash(data):
 
 
 def forward_and_monitor(u, v, message, TD, all_nodes, sink):
-   
-    
-    original_signature = (message['id'], message['TS'], tuple(message['path*']))
+    # Attempt to send to v and, on failure, retry alternative neighbors.
+    # Returns: node_id of the node that actually received and accepted the message,
+    # or None if all attempts fail.
+    original_signature = (message['id'], message['TS'], tuple(message.get('path*', [])))
     message_hash = compute_hash(original_signature)
     message['hash'] = message_hash
 
-    
-    send_message(u, v, message)
+    # ensure per-sender forward-to-malicious counter exists
+    if not hasattr(u, 'frwd_data_cnt'):
+        try:
+            u.frwd_data_cnt = defaultdict(int)
+        except Exception:
+            u.frwd_data_cnt = {}
 
-    time.sleep(TD)
+    tried = set()
+    target = v
+    max_retries = 3
+    attempt = 0
 
-    response = getattr(v, 'last_received_message', None)
-    if not response:
-        print(f"Node {v.node_id} did not respond within TD. Marked as suspicious.")
-        mark_suspicious(u, v, message, sink, all_nodes)
-        return
+    while attempt < max_retries:
+        # increment counter if target is known malicious
+        if getattr(target, 'malicious', False):
+            try:
+                u.frwd_data_cnt[target.node_id] += 1
+            except Exception:
+                u.frwd_data_cnt[target.node_id] = u.frwd_data_cnt.get(target.node_id, 0) + 1
+            print(f"frwd_data_cnt for Node {u.node_id} -> target {target.node_id} = {u.frwd_data_cnt[target.node_id]}")
 
-    returned_signature = (response.get('id'), response.get('TS'), tuple(response.get('path*', [])))
-    returned_hash = compute_hash(returned_signature)
+        send_message(u, target, message)
+        time.sleep(TD)
 
-    if returned_hash != message_hash:
-        print(f"Node {v.node_id} sent tampered message. Marked as suspicious.")
-        mark_suspicious(u, v, message, sink, all_nodes)
+        response = getattr(target, 'last_received_message', None)
+        if response:
+            returned_signature = (response.get('id'), response.get('TS'), tuple(response.get('path*', [])))
+            returned_hash = compute_hash(returned_signature)
+            if returned_hash == message_hash:
+                # success
+                return target.node_id
+            else:
+                print(f"Node {target.node_id} sent tampered message. Marked as suspicious.")
+                mark_suspicious(u, target, message, sink, all_nodes)
+        else:
+            print(f"Node {target.node_id} did not respond within TD. Marked as suspicious.")
+            mark_suspicious(u, target, message, sink, all_nodes)
+
+        tried.add(target.node_id)
+        attempt += 1
+
+        # select alternative candidate excluding tried nodes, path*, suspicious, and known malicious
+        candidates = []
+        L = 100
+        for cand in all_nodes.values():
+            if cand.node_id == u.node_id:
+                continue
+            if cand.node_id in tried:
+                continue
+            if cand.node_id in message.get('path*', []):
+                continue
+            if not hasattr(cand, 'initial_energy'):
+                continue
+            if getattr(cand, 'malicious', False):
+                continue
+            # must be within mutual communication range
+            dist_uv = euclidean_distance(u.location, cand.location)
+            if dist_uv > min(getattr(u, 'communication_radius', 0), getattr(cand, 'communication_radius', 0)):
+                continue
+            # compute a simple IF-like score
+            dvjs = euclidean_distance(cand.location, sink.location)
+            if dvjs == 0:
+                dvjs = 1e-6
+            pa = 2 if cand.node_id in message.get('path', []) else 1
+            energy_term = getattr(cand, 'initial_energy', 1.0) / (dist_uv * 0.1 + L * 0.01)
+            distance_term = 1.0 / (dvjs ** 2)
+            IF = pa * energy_term * distance_term
+            candidates.append((cand.node_id, IF))
+
+        if not candidates:
+            break
+
+        # pick best candidate by IF
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        best_id = candidates[0][0]
+        target = all_nodes[best_id]
+
+    # all attempts exhausted, report original v as suspicious (already marked during attempts)
+    print(f"All attempts to forward from Node {u.node_id} failed. Giving up.")
+    return None
 
 
 def mark_suspicious(u, v, message, sink, all_nodes):
